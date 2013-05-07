@@ -292,8 +292,8 @@ static int i82875p_setup_overfl_dev(struct pci_dev *pdev,
 		if (dev == NULL)
 			return 1;
 
-		pci_bus_add_device(dev);
 		pci_bus_assign_resources(dev->bus);
+		pci_bus_add_device(dev);
 	}
 
 	*ovrfl_pdev = dev;
