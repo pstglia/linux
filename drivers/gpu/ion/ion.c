@@ -1287,7 +1287,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return PTR_ERR(handle);
 		}
 
-		data.handle = (struct ion_handle *)handle->id;
+		data.handle = (ion_user_handle_t)handle->id;
 
 		if (copy_to_user((void __user *)arg, &data, sizeof(data))) {
 			ion_free(client, handle);
@@ -1353,7 +1353,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = PTR_ERR(handle);
 		}
 		else
-			data.handle = (struct ion_handle *)handle->id;
+			data.handle = (ion_user_handle_t)handle->id;
 
 		if (copy_to_user((void __user *)arg, &data,
 				 sizeof(struct ion_fd_data)))
