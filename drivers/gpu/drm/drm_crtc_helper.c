@@ -95,7 +95,7 @@ bool drm_helper_encoder_in_use(struct drm_encoder *encoder)
 	 */
 	if (!oops_in_progress) {
 		WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
-		WARN_ON(!mutex_is_locked(&dev->mode_config.connection_mutex));
+		WARN_ON(!drm_modeset_is_locked(&dev->mode_config.connection_mutex));
 	}
 
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
