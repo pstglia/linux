@@ -675,6 +675,9 @@ struct i915_hw_ppgtt {
 	};
 
 	int (*enable)(struct i915_hw_ppgtt *ppgtt);
+	int (*switch_mm)(struct i915_hw_ppgtt *ppgtt,
+			 struct intel_ring_buffer *ring,
+			 bool synchronous);
 };
 
 struct i915_ctx_hang_stats {
