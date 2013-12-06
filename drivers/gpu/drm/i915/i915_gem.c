@@ -5031,7 +5031,8 @@ unsigned long i915_gem_obj_offset(struct drm_i915_gem_object *o,
 	struct drm_i915_private *dev_priv = o->base.dev->dev_private;
 	struct i915_vma *vma;
 
-	if (vm == &dev_priv->mm.aliasing_ppgtt->base)
+	if (!dev_priv->mm.aliasing_ppgtt ||
+	    vm == &dev_priv->mm.aliasing_ppgtt->base)
 		vm = &dev_priv->gtt.base;
 
 	BUG_ON(list_empty(&o->vma_list));
@@ -5072,7 +5073,8 @@ unsigned long i915_gem_obj_size(struct drm_i915_gem_object *o,
 	struct drm_i915_private *dev_priv = o->base.dev->dev_private;
 	struct i915_vma *vma;
 
-	if (vm == &dev_priv->mm.aliasing_ppgtt->base)
+	if (!dev_priv->mm.aliasing_ppgtt ||
+	    vm == &dev_priv->mm.aliasing_ppgtt->base)
 		vm = &dev_priv->gtt.base;
 
 	BUG_ON(list_empty(&o->vma_list));
