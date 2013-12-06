@@ -2471,6 +2471,8 @@ void i915_gem_reset(struct drm_device *dev)
 void
 i915_gem_retire_requests_ring(struct intel_ring_buffer *ring)
 {
+	LIST_HEAD(deferred_request_free);
+	struct drm_i915_gem_request *request;
 	uint32_t seqno;
 
 	if (list_empty(&ring->request_list))
@@ -2481,8 +2483,6 @@ i915_gem_retire_requests_ring(struct intel_ring_buffer *ring)
 	seqno = ring->get_seqno(ring, true);
 
 	while (!list_empty(&ring->request_list)) {
-		struct drm_i915_gem_request *request;
-
 		request = list_first_entry(&ring->request_list,
 					   struct drm_i915_gem_request,
 					   list);
@@ -2498,7 +2498,7 @@ i915_gem_retire_requests_ring(struct intel_ring_buffer *ring)
 		 */
 		ring->last_retired_head = request->tail;
 
-		i915_gem_free_request(request);
+		list_move_tail(&request->list, &deferred_request_free);
 	}
 
 	/* Move any buffers on the active list that are no longer referenced
@@ -2523,6 +2523,13 @@ i915_gem_retire_requests_ring(struct intel_ring_buffer *ring)
 		ring->trace_irq_seqno = 0;
 	}
 
+	/* Finish processing active list before freeing request */
+	while (!list_empty(&deferred_request_free)) {
+		request = list_first_entry(&deferred_request_free,
+					   struct drm_i915_gem_request,
+					   list);
+		i915_gem_free_request(request);
+	}
 	WARN_ON(i915_verify_lists(ring->dev));
 }
 
