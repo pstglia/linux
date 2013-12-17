@@ -474,6 +474,12 @@
 			reg = <0x4a0f6000 0x1000>;
 			ti,hwmods = "spinlock";
 			#hwlock-cells = <1>;
+
+		dmm@4e000000 {
+			compatible = "ti,omap5-dmm";
+			reg = <0x4e000000 0x800>;
+			interrupts = <0 113 0x4>;
+			ti,hwmods = "dmm";
 		};
 
 		i2c1: i2c@48070000 {
