@@ -970,7 +970,7 @@ retry_snap:
 			goto retry_snap;
 		}
 	} else {
-		struct iov_iter from;
+		loff_t old_size = inode->i_size;
 		/*
 		 * No need to acquire the i_truncate_mutex. Because
 		 * the MDS revokes Fwb caps before sending truncate
@@ -982,6 +982,8 @@ retry_snap:
 		written = generic_perform_write(file, &from, pos);
 		if (likely(written >= 0))
 			iocb->ki_pos = pos + written;
+		if (inode->i_size > old_size)
+			ceph_fscache_update_objectsize(inode);
 		mutex_unlock(&inode->i_mutex);
 	}
 
