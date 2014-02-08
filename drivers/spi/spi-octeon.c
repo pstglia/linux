@@ -36,7 +36,6 @@ struct octeon_spi_setup {
 	u32 max_speed_hz;
 	u8 chip_select;
 	u8 mode;
-	u8 bits_per_word;
 };
 
 static void octeon_spi_wait_ready(struct octeon_spi *p)
@@ -203,7 +202,6 @@ static struct octeon_spi_setup *octeon_spi_new_setup(struct spi_device *spi)
 	setup->max_speed_hz = spi->max_speed_hz;
 	setup->chip_select = spi->chip_select;
 	setup->mode = spi->mode;
-	setup->bits_per_word = spi->bits_per_word;
 	return setup;
 }
 
