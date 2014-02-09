@@ -163,7 +163,6 @@ static struct dvobj_priv *usb_dvobj_init(struct usb_interface *usb_intf)
 	struct usb_endpoint_descriptor	*pendp_desc;
 	struct usb_device	*pusbd;
 
-_func_enter_;
 
 	pdvobjpriv = (struct dvobj_priv *)rtw_zmalloc(sizeof(*pdvobjpriv));
 	if (pdvobjpriv == NULL)
@@ -256,7 +255,6 @@ free_dvobj:
 		pdvobjpriv = NULL;
 	}
 exit:
-_func_exit_;
 	return pdvobjpriv;
 }
 
@@ -264,7 +262,6 @@ static void usb_dvobj_deinit(struct usb_interface *usb_intf)
 {
 	struct dvobj_priv *dvobj = usb_get_intfdata(usb_intf);
 
-_func_enter_;
 
 	usb_set_intfdata(usb_intf, NULL);
 	if (dvobj) {
@@ -289,7 +286,6 @@ _func_enter_;
 
 	usb_put_dev(interface_to_usbdev(usb_intf));
 
-_func_exit_;
 }
 
 static void chip_by_usb_id(struct adapter *padapter,
@@ -391,7 +387,6 @@ int rtw_hw_suspend(struct adapter *padapter)
 	struct pwrctrl_priv *pwrpriv = &padapter->pwrctrlpriv;
 	struct net_device *pnetdev = padapter->pnetdev;
 
-	_func_enter_;
 
 	if ((!padapter->bup) || (padapter->bDriverStopped) ||
 	    (padapter->bSurpriseRemoved)) {
@@ -444,7 +439,6 @@ int rtw_hw_suspend(struct adapter *padapter)
 	} else {
 		goto error_exit;
 	}
-	_func_exit_;
 	return 0;
 
 error_exit:
@@ -457,7 +451,6 @@ int rtw_hw_resume(struct adapter *padapter)
 	struct pwrctrl_priv *pwrpriv = &padapter->pwrctrlpriv;
 	struct net_device *pnetdev = padapter->pnetdev;
 
-	_func_enter_;
 
 	if (padapter) { /* system resume */
 		DBG_88E("==> rtw_hw_resume\n");
@@ -489,7 +482,6 @@ int rtw_hw_resume(struct adapter *padapter)
 		goto error_exit;
 	}
 
-	_func_exit_;
 
 	return 0;
 error_exit:
@@ -508,7 +500,6 @@ static int rtw_suspend(struct usb_interface *pusb_intf, pm_message_t message)
 	int ret = 0;
 	u32 start_time = jiffies;
 
-	_func_enter_;
 
 	DBG_88E("==> %s (%s:%d)\n", __func__, current->comm, current->pid);
 
@@ -565,7 +556,6 @@ exit:
 	DBG_88E("<===  %s return %d.............. in %dms\n", __func__
 		, ret, rtw_get_passing_time_ms(start_time));
 
-	_func_exit_;
 	return ret;
 }
 
@@ -589,7 +579,6 @@ int rtw_resume_process(struct adapter *padapter)
 	struct pwrctrl_priv *pwrpriv = NULL;
 	int ret = -1;
 	u32 start_time = jiffies;
-	_func_enter_;
 
 	DBG_88E("==> %s (%s:%d)\n", __func__, current->comm, current->pid);
 
@@ -628,7 +617,6 @@ exit:
 	DBG_88E("<===  %s return %d.............. in %dms\n", __func__,
 		ret, rtw_get_passing_time_ms(start_time));
 
-	_func_exit_;
 
 	return ret;
 }
@@ -837,7 +825,6 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf)
 	struct dvobj_priv *dvobj = usb_get_intfdata(pusb_intf);
 	struct adapter *padapter = dvobj->if1;
 
-_func_enter_;
 
 	DBG_88E("+rtw_dev_remove\n");
 	RT_TRACE(_module_hci_intfs_c_, _drv_err_, ("+dev_remove()\n"));
@@ -856,7 +843,6 @@ _func_enter_;
 
 	RT_TRACE(_module_hci_intfs_c_, _drv_err_, ("-dev_remove()\n"));
 	DBG_88E("-r871xu_dev_remove, done\n");
-_func_exit_;
 
 	return;
 }
