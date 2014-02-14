@@ -2086,6 +2086,7 @@ void i915_gem_vma_destroy(struct i915_vma *vma);
 
 #define PIN_MAPPABLE 0x1
 #define PIN_NONBLOCK 0x2
+#define PIN_GLOBAL 0x4
 int __must_check i915_gem_object_pin(struct drm_i915_gem_object *obj,
 				     struct i915_address_space *vm,
 				     uint32_t alignment,
@@ -2294,7 +2295,7 @@ i915_gem_obj_ggtt_pin(struct drm_i915_gem_object *obj,
 		      uint32_t alignment,
 		      unsigned flags)
 {
-	return i915_gem_object_pin(obj, obj_to_ggtt(obj), alignment, flags);
+	return i915_gem_object_pin(obj, obj_to_ggtt(obj), alignment, flags | PIN_GLOBAL);
 }
 
 /* i915_gem_context.c */
