@@ -302,11 +302,12 @@ static struct trace_event_functions ftrace_event_type_funcs_##call = {	\
 #undef __array
 #define __array(type, item, len)					\
 	do {								\
+		char *type_str = #type"["__stringify(len)"]";		\
 		BUILD_BUG_ON(len > MAX_FILTER_STR_VAL);			\
-		ret = ftrace_event_define_field(event_call, #type, len,	\
-				#item, offsetof(typeof(field), item),   \
-				sizeof(field.item),			\
-			 	is_signed_type(type), FILTER_OTHER); \
+		ret = trace_define_field(event_call, type_str, #item,	\
+				 offsetof(typeof(field), item),		\
+				 sizeof(field.item),			\
+				 is_signed_type(type), FILTER_OTHER);	\
 		if (ret)						\
 			return ret;					\
 	} while (0);

@@ -95,11 +95,12 @@ static void __always_unused ____ftrace_check_##name(void)		\
 #undef __array
 #define __array(type, item, len)					\
 	do {								\
+		char *type_str = #type"["__stringify(len)"]";		\
 		BUILD_BUG_ON(len > MAX_FILTER_STR_VAL);			\
-		ret = ftrace_event_define_field(event_call, #type, len,	\
-				#item, offsetof(typeof(field), item),   \
-				sizeof(field.item),			\
-			 	is_signed_type(type), filter_type);	\
+		ret = trace_define_field(event_call, type_str, #item,	\
+				 offsetof(typeof(field), item),		\
+				 sizeof(field.item),			\
+				 is_signed_type(type), filter_type);	\
 		if (ret)						\
 			return ret;					\
 	} while (0);
