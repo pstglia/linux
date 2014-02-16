@@ -474,10 +474,10 @@ static void bond_opt_error_interpret(struct bonding *bond,
 				p = strchr(val->string, '\n');
 				if (p)
 					*p = '\0';
-				pr_err("%s: option %s: invalid value (%s).\n",
+				pr_err("%s: option %s: invalid value (%s)\n",
 				       bond->dev->name, opt->name, val->string);
 			} else {
-				pr_err("%s: option %s: invalid value (%llu).\n",
+				pr_err("%s: option %s: invalid value (%llu)\n",
 				       bond->dev->name, opt->name, val->value);
 			}
 		}
@@ -485,7 +485,7 @@ static void bond_opt_error_interpret(struct bonding *bond,
 		maxval = bond_opt_get_flags(opt, BOND_VALFLAG_MAX);
 		if (!maxval)
 			break;
-		pr_err("%s: option %s: allowed values %llu - %llu.\n",
+		pr_err("%s: option %s: allowed values %llu - %llu\n",
 		       bond->dev->name, opt->name, minval ? minval->value : 0,
 		       maxval->value);
 		break;
@@ -493,11 +493,11 @@ static void bond_opt_error_interpret(struct bonding *bond,
 		bond_opt_dep_print(bond, opt);
 		break;
 	case -ENOTEMPTY:
-		pr_err("%s: option %s: unable to set because the bond device has slaves.\n",
+		pr_err("%s: option %s: unable to set because the bond device has slaves\n",
 		       bond->dev->name, opt->name);
 		break;
 	case -EBUSY:
-		pr_err("%s: option %s: unable to set because the bond device is up.\n",
+		pr_err("%s: option %s: unable to set because the bond device is up\n",
 		       bond->dev->name, opt->name);
 		break;
 	default:
@@ -590,7 +590,7 @@ int bond_option_mode_set(struct bonding *bond, struct bond_opt_value *newval)
 		bond->params.arp_interval = 0;
 		/* set miimon to default value */
 		bond->params.miimon = BOND_DEFAULT_MIIMON;
-		pr_info("%s: Setting MII monitoring interval to %d.\n",
+		pr_info("%s: Setting MII monitoring interval to %d\n",
 			bond->dev->name, bond->params.miimon);
 	}
 
@@ -637,13 +637,13 @@ int bond_option_active_slave_set(struct bonding *bond,
 
 	if (slave_dev) {
 		if (!netif_is_bond_slave(slave_dev)) {
-			pr_err("Device %s is not bonding slave.\n",
+			pr_err("Device %s is not bonding slave\n",
 			       slave_dev->name);
 			return -EINVAL;
 		}
 
 		if (bond->dev != netdev_master_upper_dev_get(slave_dev)) {
-			pr_err("%s: Device %s is not our slave.\n",
+			pr_err("%s: Device %s is not our slave\n",
 			       bond->dev->name, slave_dev->name);
 			return -EINVAL;
 		}
@@ -654,8 +654,7 @@ int bond_option_active_slave_set(struct bonding *bond,
 
 	/* check to see if we are clearing active */
 	if (!slave_dev) {
-		pr_info("%s: Clearing current active slave.\n",
-		bond->dev->name);
+		pr_info("%s: Clearing current active slave\n", bond->dev->name);
 		rcu_assign_pointer(bond->curr_active_slave, NULL);
 		bond_select_active_slave(bond);
 	} else {
@@ -666,16 +665,16 @@ int bond_option_active_slave_set(struct bonding *bond,
 
 		if (new_active == old_active) {
 			/* do nothing */
-			pr_info("%s: %s is already the current active slave.\n",
+			pr_info("%s: %s is already the current active slave\n",
 				bond->dev->name, new_active->dev->name);
 		} else {
 			if (old_active && (new_active->link == BOND_LINK_UP) &&
 			    IS_UP(new_active->dev)) {
-				pr_info("%s: Setting %s as active slave.\n",
+				pr_info("%s: Setting %s as active slave\n",
 					bond->dev->name, new_active->dev->name);
 				bond_change_active_slave(bond, new_active);
 			} else {
-				pr_err("%s: Could not set %s as active slave; either %s is down or the link is down.\n",
+				pr_err("%s: Could not set %s as active slave; either %s is down or the link is down\n",
 				       bond->dev->name, new_active->dev->name,
 				       new_active->dev->name);
 				ret = -EINVAL;
@@ -691,19 +690,19 @@ int bond_option_active_slave_set(struct bonding *bond,
 
 int bond_option_miimon_set(struct bonding *bond, struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting MII monitoring interval to %llu.\n",
+	pr_info("%s: Setting MII monitoring interval to %llu\n",
 		bond->dev->name, newval->value);
 	bond->params.miimon = newval->value;
 	if (bond->params.updelay)
-		pr_info("%s: Note: Updating updelay (to %d) since it is a multiple of the miimon value.\n",
+		pr_info("%s: Note: Updating updelay (to %d) since it is a multiple of the miimon value\n",
 			bond->dev->name,
 			bond->params.updelay * bond->params.miimon);
 	if (bond->params.downdelay)
-		pr_info("%s: Note: Updating downdelay (to %d) since it is a multiple of the miimon value.\n",
+		pr_info("%s: Note: Updating downdelay (to %d) since it is a multiple of the miimon value\n",
 			bond->dev->name,
 			bond->params.downdelay * bond->params.miimon);
 	if (newval->value && bond->params.arp_interval) {
-		pr_info("%s: MII monitoring cannot be used with ARP monitoring. Disabling ARP monitoring...\n",
+		pr_info("%s: MII monitoring cannot be used with ARP monitoring - disabling ARP monitoring...\n",
 			bond->dev->name);
 		bond->params.arp_interval = 0;
 		if (bond->params.arp_validate)
@@ -743,9 +742,8 @@ int bond_option_updelay_set(struct bonding *bond, struct bond_opt_value *newval)
 			bond->params.miimon);
 	}
 	bond->params.updelay = value / bond->params.miimon;
-	pr_info("%s: Setting up delay to %d.\n",
-		bond->dev->name,
-		bond->params.updelay * bond->params.miimon);
+	pr_info("%s: Setting up delay to %d\n",
+		bond->dev->name, bond->params.updelay * bond->params.miimon);
 
 	return 0;
 }
@@ -768,9 +766,8 @@ int bond_option_downdelay_set(struct bonding *bond,
 			bond->params.miimon);
 	}
 	bond->params.downdelay = value / bond->params.miimon;
-	pr_info("%s: Setting down delay to %d.\n",
-		bond->dev->name,
-		bond->params.downdelay * bond->params.miimon);
+	pr_info("%s: Setting down delay to %d\n",
+		bond->dev->name, bond->params.downdelay * bond->params.miimon);
 
 	return 0;
 }
@@ -778,7 +775,7 @@ int bond_option_downdelay_set(struct bonding *bond,
 int bond_option_use_carrier_set(struct bonding *bond,
 				struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting use_carrier to %llu.\n",
+	pr_info("%s: Setting use_carrier to %llu\n",
 		bond->dev->name, newval->value);
 	bond->params.use_carrier = newval->value;
 
@@ -788,17 +785,17 @@ int bond_option_use_carrier_set(struct bonding *bond,
 int bond_option_arp_interval_set(struct bonding *bond,
 				 struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting ARP monitoring interval to %llu.\n",
+	pr_info("%s: Setting ARP monitoring interval to %llu\n",
 		bond->dev->name, newval->value);
 	bond->params.arp_interval = newval->value;
 	if (newval->value) {
 		if (bond->params.miimon) {
-			pr_info("%s: ARP monitoring cannot be used with MII monitoring. %s Disabling MII monitoring.\n",
+			pr_info("%s: ARP monitoring cannot be used with MII monitoring. %s Disabling MII monitoring\n",
 				bond->dev->name, bond->dev->name);
 			bond->params.miimon = 0;
 		}
 		if (!bond->params.arp_targets[0])
-			pr_info("%s: ARP monitoring has been set up, but no ARP targets have been specified.\n",
+			pr_info("%s: ARP monitoring has been set up, but no ARP targets have been specified\n",
 				bond->dev->name);
 	}
 	if (bond->dev->flags & IFF_UP) {
@@ -857,12 +854,11 @@ static int _bond_option_arp_ip_target_add(struct bonding *bond, __be32 target)
 
 	ind = bond_get_targets_ip(targets, 0); /* first free slot */
 	if (ind == -1) {
-		pr_err("%s: ARP target table is full!\n",
-		       bond->dev->name);
+		pr_err("%s: ARP target table is full!\n", bond->dev->name);
 		return -EINVAL;
 	}
 
-	pr_info("%s: adding ARP target %pI4.\n", bond->dev->name, &target);
+	pr_info("%s: Adding ARP target %pI4\n", bond->dev->name, &target);
 
 	_bond_options_arp_ip_target_set(bond, ind, target, jiffies);
 
@@ -897,17 +893,16 @@ int bond_option_arp_ip_target_rem(struct bonding *bond, __be32 target)
 
 	ind = bond_get_targets_ip(targets, target);
 	if (ind == -1) {
-		pr_err("%s: unable to remove nonexistent ARP target %pI4.\n",
+		pr_err("%s: unable to remove nonexistent ARP target %pI4\n",
 		       bond->dev->name, &target);
 		return -EINVAL;
 	}
 
 	if (ind == 0 && !targets[1] && bond->params.arp_interval)
-		pr_warn("%s: removing last arp target with arp_interval on\n",
+		pr_warn("%s: Removing last arp target with arp_interval on\n",
 			bond->dev->name);
 
-	pr_info("%s: removing ARP target %pI4.\n", bond->dev->name,
-		&target);
+	pr_info("%s: Removing ARP target %pI4\n", bond->dev->name, &target);
 
 	/* not to race with bond_arp_rcv */
 	write_lock_bh(&bond->lock);
@@ -955,7 +950,7 @@ int bond_option_arp_ip_targets_set(struct bonding *bond,
 		else if (newval->string[0] == '-')
 			ret = bond_option_arp_ip_target_rem(bond, target);
 		else
-			pr_err("no command found in arp_ip_targets file for bond %s. Use +<addr> or -<addr>.\n",
+			pr_err("no command found in arp_ip_targets file for bond %s - use +<addr> or -<addr>\n",
 			       bond->dev->name);
 	} else {
 		target = newval->value;
@@ -968,7 +963,7 @@ int bond_option_arp_ip_targets_set(struct bonding *bond,
 int bond_option_arp_validate_set(struct bonding *bond,
 				 struct bond_opt_value *newval)
 {
-	pr_info("%s: setting arp_validate to %s (%llu).\n",
+	pr_info("%s: Setting arp_validate to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 
 	if (bond->dev->flags & IFF_UP) {
@@ -985,7 +980,7 @@ int bond_option_arp_validate_set(struct bonding *bond,
 int bond_option_arp_all_targets_set(struct bonding *bond,
 				    struct bond_opt_value *newval)
 {
-	pr_info("%s: setting arp_all_targets to %s (%llu).\n",
+	pr_info("%s: Setting arp_all_targets to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.arp_all_targets = newval->value;
 
@@ -1007,8 +1002,7 @@ int bond_option_primary_set(struct bonding *bond, struct bond_opt_value *newval)
 		*p = '\0';
 	/* check to see if we are clearing primary */
 	if (!strlen(primary)) {
-		pr_info("%s: Setting primary slave to None.\n",
-			bond->dev->name);
+		pr_info("%s: Setting primary slave to None\n", bond->dev->name);
 		bond->primary_slave = NULL;
 		memset(bond->params.primary, 0, sizeof(bond->params.primary));
 		bond_select_active_slave(bond);
@@ -1017,7 +1011,7 @@ int bond_option_primary_set(struct bonding *bond, struct bond_opt_value *newval)
 
 	bond_for_each_slave(bond, slave, iter) {
 		if (strncmp(slave->dev->name, primary, IFNAMSIZ) == 0) {
-			pr_info("%s: Setting %s as primary slave.\n",
+			pr_info("%s: Setting %s as primary slave\n",
 				bond->dev->name, slave->dev->name);
 			bond->primary_slave = slave;
 			strcpy(bond->params.primary, slave->dev->name);
@@ -1027,15 +1021,14 @@ int bond_option_primary_set(struct bonding *bond, struct bond_opt_value *newval)
 	}
 
 	if (bond->primary_slave) {
-		pr_info("%s: Setting primary slave to None.\n",
-			bond->dev->name);
+		pr_info("%s: Setting primary slave to None\n", bond->dev->name);
 		bond->primary_slave = NULL;
 		bond_select_active_slave(bond);
 	}
 	strncpy(bond->params.primary, primary, IFNAMSIZ);
 	bond->params.primary[IFNAMSIZ - 1] = 0;
 
-	pr_info("%s: Recording %s as primary, but it has not been enslaved to %s yet.\n",
+	pr_info("%s: Recording %s as primary, but it has not been enslaved to %s yet\n",
 		bond->dev->name, primary, bond->dev->name);
 
 out:
@@ -1049,7 +1042,7 @@ out:
 int bond_option_primary_reselect_set(struct bonding *bond,
 				     struct bond_opt_value *newval)
 {
-	pr_info("%s: setting primary_reselect to %s (%llu).\n",
+	pr_info("%s: Setting primary_reselect to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.primary_reselect = newval->value;
 
@@ -1065,7 +1058,7 @@ int bond_option_primary_reselect_set(struct bonding *bond,
 int bond_option_fail_over_mac_set(struct bonding *bond,
 				  struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting fail_over_mac to %s (%llu).\n",
+	pr_info("%s: Setting fail_over_mac to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.fail_over_mac = newval->value;
 
@@ -1075,7 +1068,7 @@ int bond_option_fail_over_mac_set(struct bonding *bond,
 int bond_option_xmit_hash_policy_set(struct bonding *bond,
 				     struct bond_opt_value *newval)
 {
-	pr_info("%s: setting xmit hash policy to %s (%llu).\n",
+	pr_info("%s: Setting xmit hash policy to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.xmit_policy = newval->value;
 
@@ -1085,7 +1078,7 @@ int bond_option_xmit_hash_policy_set(struct bonding *bond,
 int bond_option_resend_igmp_set(struct bonding *bond,
 				struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting resend_igmp to %llu.\n",
+	pr_info("%s: Setting resend_igmp to %llu\n",
 		bond->dev->name, newval->value);
 	bond->params.resend_igmp = newval->value;
 
@@ -1159,7 +1152,7 @@ int bond_option_pps_set(struct bonding *bond, struct bond_opt_value *newval)
 int bond_option_lacp_rate_set(struct bonding *bond,
 			      struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting LACP rate to %s (%llu).\n",
+	pr_info("%s: Setting LACP rate to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.lacp_fast = newval->value;
 	bond_3ad_update_lacp_rate(bond);
@@ -1170,7 +1163,7 @@ int bond_option_lacp_rate_set(struct bonding *bond,
 int bond_option_ad_select_set(struct bonding *bond,
 			      struct bond_opt_value *newval)
 {
-	pr_info("%s: Setting ad_select to %s (%llu).\n",
+	pr_info("%s: Setting ad_select to %s (%llu)\n",
 		bond->dev->name, newval->string, newval->value);
 	bond->params.ad_select = newval->value;
 
@@ -1232,8 +1225,7 @@ out:
 	return ret;
 
 err_no_cmd:
-	pr_info("invalid input for queue_id set for %s.\n",
-		bond->dev->name);
+	pr_info("invalid input for queue_id set for %s\n", bond->dev->name);
 	ret = -EPERM;
 	goto out;
 
@@ -1254,7 +1246,7 @@ int bond_option_slaves_set(struct bonding *bond, struct bond_opt_value *newval)
 
 	dev = __dev_get_by_name(dev_net(bond->dev), ifname);
 	if (!dev) {
-		pr_info("%s: Interface %s does not exist!\n",
+		pr_info("%s: interface %s does not exist!\n",
 			bond->dev->name, ifname);
 		ret = -ENODEV;
 		goto out;
@@ -1262,12 +1254,12 @@ int bond_option_slaves_set(struct bonding *bond, struct bond_opt_value *newval)
 
 	switch (command[0]) {
 	case '+':
-		pr_info("%s: Adding slave %s.\n", bond->dev->name, dev->name);
+		pr_info("%s: Adding slave %s\n", bond->dev->name, dev->name);
 		ret = bond_enslave(bond->dev, dev);
 		break;
 
 	case '-':
-		pr_info("%s: Removing slave %s.\n", bond->dev->name, dev->name);
+		pr_info("%s: Removing slave %s\n", bond->dev->name, dev->name);
 		ret = bond_release(bond->dev, dev);
 		break;
 
@@ -1279,7 +1271,7 @@ out:
 	return ret;
 
 err_no_cmd:
-	pr_err("no command found in slaves file for bond %s. Use +ifname or -ifname.\n",
+	pr_err("no command found in slaves file for bond %s - use +ifname or -ifname\n",
 	       bond->dev->name);
 	ret = -EPERM;
 	goto out;
