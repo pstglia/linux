@@ -5207,19 +5207,16 @@ void intel_suspend_hw(struct drm_device *dev)
  * enable it, so check if it's enabled and also check if we've requested it to
  * be enabled.
  */
-static bool hsw_power_well_enabled(struct drm_device *dev,
+static bool hsw_power_well_enabled(struct drm_i915_private *dev_priv,
 				   struct i915_power_well *power_well)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	return I915_READ(HSW_PWR_WELL_DRIVER) ==
 		     (HSW_PWR_WELL_ENABLE_REQUEST | HSW_PWR_WELL_STATE_ENABLED);
 }
 
-bool intel_display_power_enabled_sw(struct drm_device *dev,
+bool intel_display_power_enabled_sw(struct drm_i915_private *dev_priv,
 				    enum intel_display_power_domain domain)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains;
 
 	power_domains = &dev_priv->power_domains;
@@ -5227,10 +5224,9 @@ bool intel_display_power_enabled_sw(struct drm_device *dev,
 	return power_domains->domain_use_count[domain];
 }
 
-bool intel_display_power_enabled(struct drm_device *dev,
+bool intel_display_power_enabled(struct drm_i915_private *dev_priv,
 				 enum intel_display_power_domain domain)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains;
 	struct i915_power_well *power_well;
 	bool is_enabled;
@@ -5245,7 +5241,7 @@ bool intel_display_power_enabled(struct drm_device *dev,
 		if (power_well->always_on)
 			continue;
 
-		if (!power_well->is_enabled(dev, power_well)) {
+		if (!power_well->is_enabled(dev_priv, power_well)) {
 			is_enabled = false;
 			break;
 		}
@@ -5311,10 +5307,9 @@ static void hsw_power_well_post_disable(struct drm_i915_private *dev_priv)
 	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
 }
 
-static void hsw_set_power_well(struct drm_device *dev,
+static void hsw_set_power_well(struct drm_i915_private *dev_priv,
 			       struct i915_power_well *power_well, bool enable)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	bool is_enabled, enable_requested;
 	uint32_t tmp;
 
@@ -5348,35 +5343,30 @@ static void hsw_set_power_well(struct drm_device *dev,
 	}
 }
 
-static void __intel_power_well_get(struct drm_device *dev,
+static void __intel_power_well_get(struct drm_i915_private *dev_priv,
 				   struct i915_power_well *power_well)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	if (!power_well->count++ && power_well->set) {
 		hsw_disable_package_c8(dev_priv);
-		power_well->set(dev, power_well, true);
+		power_well->set(dev_priv, power_well, true);
 	}
 }
 
-static void __intel_power_well_put(struct drm_device *dev,
+static void __intel_power_well_put(struct drm_i915_private *dev_priv,
 				   struct i915_power_well *power_well)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	WARN_ON(!power_well->count);
 
 	if (!--power_well->count && power_well->set &&
 	    i915.disable_power_well) {
-		power_well->set(dev, power_well, false);
+		power_well->set(dev_priv, power_well, false);
 		hsw_enable_package_c8(dev_priv);
 	}
 }
 
-void intel_display_power_get(struct drm_device *dev,
+void intel_display_power_get(struct drm_i915_private *dev_priv,
 			     enum intel_display_power_domain domain)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains;
 	struct i915_power_well *power_well;
 	int i;
@@ -5386,17 +5376,16 @@ void intel_display_power_get(struct drm_device *dev,
 	mutex_lock(&power_domains->lock);
 
 	for_each_power_well(i, power_well, BIT(domain), power_domains)
-		__intel_power_well_get(dev, power_well);
+		__intel_power_well_get(dev_priv, power_well);
 
 	power_domains->domain_use_count[domain]++;
 
 	mutex_unlock(&power_domains->lock);
 }
 
-void intel_display_power_put(struct drm_device *dev,
+void intel_display_power_put(struct drm_i915_private *dev_priv,
 			     enum intel_display_power_domain domain)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains;
 	struct i915_power_well *power_well;
 	int i;
@@ -5409,7 +5398,7 @@ void intel_display_power_put(struct drm_device *dev,
 	power_domains->domain_use_count[domain]--;
 
 	for_each_power_well_rev(i, power_well, BIT(domain), power_domains)
-		__intel_power_well_put(dev, power_well);
+		__intel_power_well_put(dev_priv, power_well);
 
 	mutex_unlock(&power_domains->lock);
 }
@@ -5426,7 +5415,7 @@ void i915_request_power_well(void)
 
 	dev_priv = container_of(hsw_pwr, struct drm_i915_private,
 				power_domains);
-	intel_display_power_get(dev_priv->dev, POWER_DOMAIN_AUDIO);
+	intel_display_power_get(dev_priv, POWER_DOMAIN_AUDIO);
 }
 EXPORT_SYMBOL_GPL(i915_request_power_well);
 
@@ -5440,7 +5429,7 @@ void i915_release_power_well(void)
 
 	dev_priv = container_of(hsw_pwr, struct drm_i915_private,
 				power_domains);
-	intel_display_power_put(dev_priv->dev, POWER_DOMAIN_AUDIO);
+	intel_display_power_put(dev_priv, POWER_DOMAIN_AUDIO);
 }
 EXPORT_SYMBOL_GPL(i915_release_power_well);
 
@@ -5485,9 +5474,8 @@ static struct i915_power_well bdw_power_wells[] = {
 	(power_domains)->power_well_count = ARRAY_SIZE(__power_wells);	\
 })
 
-int intel_power_domains_init(struct drm_device *dev)
+int intel_power_domains_init(struct drm_i915_private *dev_priv)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains = &dev_priv->power_domains;
 
 	mutex_init(&power_domains->lock);
@@ -5496,10 +5484,10 @@ int intel_power_domains_init(struct drm_device *dev)
 	 * The enabling order will be from lower to higher indexed wells,
 	 * the disabling order is reversed.
 	 */
-	if (IS_HASWELL(dev)) {
+	if (IS_HASWELL(dev_priv->dev)) {
 		set_power_wells(power_domains, hsw_power_wells);
 		hsw_pwr = power_domains;
-	} else if (IS_BROADWELL(dev)) {
+	} else if (IS_BROADWELL(dev_priv->dev)) {
 		set_power_wells(power_domains, bdw_power_wells);
 		hsw_pwr = power_domains;
 	} else {
@@ -5509,14 +5497,13 @@ int intel_power_domains_init(struct drm_device *dev)
 	return 0;
 }
 
-void intel_power_domains_remove(struct drm_device *dev)
+void intel_power_domains_remove(struct drm_i915_private *dev_priv)
 {
 	hsw_pwr = NULL;
 }
 
-static void intel_power_domains_resume(struct drm_device *dev)
+static void intel_power_domains_resume(struct drm_i915_private *dev_priv)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains = &dev_priv->power_domains;
 	struct i915_power_well *power_well;
 	int i;
@@ -5524,7 +5511,7 @@ static void intel_power_domains_resume(struct drm_device *dev)
 	mutex_lock(&power_domains->lock);
 	for_each_power_well(i, power_well, POWER_DOMAIN_MASK, power_domains) {
 		if (power_well->set)
-			power_well->set(dev, power_well, power_well->count > 0);
+			power_well->set(dev_priv, power_well, power_well->count > 0);
 	}
 	mutex_unlock(&power_domains->lock);
 }
@@ -5535,15 +5522,13 @@ static void intel_power_domains_resume(struct drm_device *dev)
  * to be enabled, and it will only be disabled if none of the registers is
  * requesting it to be enabled.
  */
-void intel_power_domains_init_hw(struct drm_device *dev)
+void intel_power_domains_init_hw(struct drm_i915_private *dev_priv)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	/* For now, we need the power well to be always enabled. */
-	intel_display_set_init_power(dev, true);
-	intel_power_domains_resume(dev);
+	intel_display_set_init_power(dev_priv, true);
+	intel_power_domains_resume(dev_priv);
 
-	if (!(IS_HASWELL(dev) || IS_BROADWELL(dev)))
+	if (!(IS_HASWELL(dev_priv->dev) || IS_BROADWELL(dev_priv->dev)))
 		return;
 
 	/* We're taking over the BIOS, so clear any requests made by it since
