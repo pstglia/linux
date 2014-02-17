@@ -21,11 +21,11 @@ config MACH_MVEBU_V7
 	bool
 	select ARMADA_370_XP_TIMER
 	select CACHE_L2X0
-	select CPU_PJ4B
 
 config MACH_ARMADA_370
 	bool "Marvell Armada 370 boards"
 	select ARMADA_370_CLK
+	select CPU_PJ4B
 	select MACH_MVEBU_V7
 	select PINCTRL_ARMADA_370
 	help
@@ -35,6 +35,7 @@ config MACH_ARMADA_370
 config MACH_ARMADA_XP
 	bool "Marvell Armada XP boards"
 	select ARMADA_XP_CLK
+	select CPU_PJ4B
 	select MACH_MVEBU_V7
 	select PINCTRL_ARMADA_XP
 	help
