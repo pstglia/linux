@@ -4011,6 +4011,8 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 	 * happening.
 	 */
 	intel_wait_for_vblank(dev, intel_crtc->pipe);
+
+	drm_vblank_on(dev, pipe);
 }
 
 /* IPS only exists on ULT machines and is tied to pipe A. */
