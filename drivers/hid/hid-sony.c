@@ -50,6 +50,7 @@
 #define SONY_LED_SUPPORT (SIXAXIS_CONTROLLER | BUZZ_CONTROLLER |\
 				DUALSHOCK4_CONTROLLER)
 #define SONY_BATTERY_SUPPORT (SIXAXIS_CONTROLLER | DUALSHOCK4_CONTROLLER)
+#define SONY_FF_SUPPORT (SIXAXIS_CONTROLLER_USB | DUALSHOCK4_CONTROLLER_USB)
 
 #define MAX_LEDS 4
 
@@ -725,6 +726,7 @@ struct sony_sc {
 	__u8 right;
 #endif
 
+	__u8 worker_initialized;
 	__u8 cable_state;
 	__u8 battery_charging;
 	__u8 battery_capacity;
@@ -1354,21 +1356,10 @@ static int sony_init_ff(struct hid_device *hdev)
 	return input_ff_create_memless(input_dev, NULL, sony_play_effect);
 }
 
-static void sony_destroy_ff(struct hid_device *hdev)
-{
-	struct sony_sc *sc = hid_get_drvdata(hdev);
-
-	cancel_work_sync(&sc->state_worker);
-}
-
 #else
 static int sony_init_ff(struct hid_device *hdev)
 {
 	return 0;
-}
-
-static void sony_destroy_ff(struct hid_device *hdev)
-{
 }
 #endif
 
@@ -1521,6 +1512,8 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (sc->quirks & SIXAXIS_CONTROLLER_USB) {
 		hdev->hid_output_raw_report = sixaxis_usb_output_raw_report;
 		ret = sixaxis_set_operational_usb(hdev);
+
+		sc->worker_initialized = 1;
 		INIT_WORK(&sc->state_worker, sixaxis_state_worker);
 	} else if (sc->quirks & SIXAXIS_CONTROLLER_BT) {
 		ret = sixaxis_set_operational_bt(hdev);
@@ -1540,6 +1533,7 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		if (ret < 0)
 			goto err_stop;
 
+		sc->worker_initialized = 1;
 		INIT_WORK(&sc->state_worker, dualshock4_state_worker);
 	} else {
 		ret = 0;
@@ -1567,9 +1561,11 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		}
 	}
 
-	ret = sony_init_ff(hdev);
-	if (ret < 0)
-		goto err_close;
+	if (sc->quirks & SONY_FF_SUPPORT) {
+		ret = sony_init_ff(hdev);
+		if (ret < 0)
+			goto err_stop;
+	}
 
 	return 0;
 err_close:
@@ -1594,8 +1590,6 @@ static void sony_remove(struct hid_device *hdev)
 		hid_hw_close(hdev);
 		sony_battery_remove(sc);
 	}
-
-	sony_destroy_ff(hdev);
 
 	hid_hw_stop(hdev);
 }
