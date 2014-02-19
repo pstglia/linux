@@ -6,7 +6,7 @@ config ARCH_ZYNQ
 	select HAVE_ARM_TWD if SMP
 	select ICST
 	select CADENCE_TTC_TIMER
-	select ARM_GLOBAL_TIMER
 	select MFD_SYSCON
+	select ARM_GLOBAL_TIMER if !CPU_FREQ
 	help
 	  Support for Xilinx Zynq ARM Cortex A9 Platform
