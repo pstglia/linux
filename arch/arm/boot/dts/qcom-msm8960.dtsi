@@ -37,6 +37,11 @@
 			cache-level = <2>;
 			interrupts = <0 2 0x4>;
 		};
+
+	cpu-pmu {
+		compatible = "qcom,krait-pmu";
+		interrupts = <1 10 0x304>;
+		qcom,no-pc-write;
 	};
 
 	intc: interrupt-controller@2000000 {
