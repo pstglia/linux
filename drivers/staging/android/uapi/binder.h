@@ -131,8 +131,10 @@ struct binder_transaction_data {
 	 * identifying the target and contents of the transaction.
 	 */
 	union {
-		__u32	handle;	/* target descriptor of command transaction */
-		binder_uintptr_t ptr;	/* target descriptor of return transaction */
+		/* target descriptor of command transaction */
+		__u32	handle;
+		/* target descriptor of return transaction */
+		binder_uintptr_t ptr;
 	} target;
 	binder_uintptr_t	cookie;	/* target object cookie */
 	__u32		code;		/* transaction command */
