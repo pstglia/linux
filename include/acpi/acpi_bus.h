@@ -154,6 +154,7 @@ struct acpi_scan_handler {
 struct acpi_hotplug_context {
 	struct acpi_device *self;
 	int (*event)(struct acpi_device *, u32);
+	void (*fixup)(struct acpi_device *);
 };
 
 /*
@@ -376,10 +377,12 @@ static inline void acpi_set_device_status(struct acpi_device *adev, u32 sta)
 
 static inline void acpi_set_hp_context(struct acpi_device *adev,
 				       struct acpi_hotplug_context *hp,
-				       int (*event)(struct acpi_device *, u32))
+				       int (*event)(struct acpi_device *, u32),
+				       void (*fixup)(struct acpi_device *))
 {
 	hp->self = adev;
 	hp->event = event;
+	hp->fixup = fixup;
 	adev->hp = hp;
 }
 
