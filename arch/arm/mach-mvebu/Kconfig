@@ -23,7 +23,7 @@ config MACH_MVEBU_V7
 	select CACHE_L2X0
 
 config MACH_ARMADA_370
-	bool "Marvell Armada 370 boards"
+	bool "Marvell Armada 370 boards" if ARCH_MULTI_V7
 	select ARMADA_370_CLK
 	select CPU_PJ4B
 	select MACH_MVEBU_V7
@@ -61,7 +61,7 @@ config MACH_ARMADA_38X
 	  on the Marvell Armada 380/385 SoC with device tree.
 
 config MACH_ARMADA_XP
-	bool "Marvell Armada XP boards"
+	bool "Marvell Armada XP boards" if ARCH_MULTI_V7
 	select ARMADA_XP_CLK
 	select CPU_PJ4B
 	select MACH_MVEBU_V7
