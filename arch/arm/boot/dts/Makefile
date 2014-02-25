@@ -133,6 +133,7 @@ kirkwood := \
 	kirkwood-rs411.dtb \
 	kirkwood-sheevaplug.dtb \
 	kirkwood-sheevaplug-esata.dtb \
+	kirkwood-t5325.dtb \
 	kirkwood-topkick.dtb \
 	kirkwood-ts219-6281.dtb \
 	kirkwood-ts219-6282.dtb \
