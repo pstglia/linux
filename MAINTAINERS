@@ -3409,7 +3409,9 @@ F:	Documentation/filesystems/ext4.txt
 F:	fs/ext4/
 
 Extended Verification Module (EVM)
-M:	Mimi Zohar <zohar@us.ibm.com>
+M:	Mimi Zohar <zohar@linux.vnet.ibm.com>
+L:	linux-ima-devel@lists.sourceforge.net
+L:	linux-security-module@vger.kernel.org
 S:	Supported
 F:	security/integrity/evm/
 
@@ -4431,8 +4433,11 @@ S:	Maintained
 F:	drivers/ipack/
 
 INTEGRITY MEASUREMENT ARCHITECTURE (IMA)
-M:	Mimi Zohar <zohar@us.ibm.com>
+M:	Mimi Zohar <zohar@linux.vnet.ibm.com>
 M:	Dmitry Kasatkin <d.kasatkin@samsung.com>
+L:	linux-ima-devel@lists.sourceforge.net
+L:	linux-ima-user@lists.sourceforge.net
+L:	linux-security-module@vger.kernel.org
 S:	Supported
 F:	security/integrity/ima/
 
@@ -5083,8 +5088,8 @@ F:	include/keys/
 F:	security/keys/
 
 KEYS-TRUSTED
-M:	David Safford <safford@watson.ibm.com>
-M:	Mimi Zohar <zohar@us.ibm.com>
+M:	David Safford <safford@us.ibm.com>
+M:	Mimi Zohar <zohar@linux.vnet.ibm.com>
 L:	linux-security-module@vger.kernel.org
 L:	keyrings@linux-nfs.org
 S:	Supported
@@ -5094,8 +5099,8 @@ F:	security/keys/trusted.c
 F:	security/keys/trusted.h
 
 KEYS-ENCRYPTED
-M:	Mimi Zohar <zohar@us.ibm.com>
-M:	David Safford <safford@watson.ibm.com>
+M:	Mimi Zohar <zohar@linux.vnet.ibm.com>
+M:	David Safford <safford@us.ibm.com>
 L:	linux-security-module@vger.kernel.org
 L:	keyrings@linux-nfs.org
 S:	Supported
