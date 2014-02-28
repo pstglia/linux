@@ -182,7 +182,7 @@ struct audit_buffer {
 
 struct audit_reply {
 	__u32 portid;
-	struct net *net;	
+	struct net *net;
 	struct sk_buff *skb;
 };
 
