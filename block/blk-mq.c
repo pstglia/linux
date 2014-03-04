@@ -285,8 +285,21 @@ void blk_mq_free_request(struct request *rq)
 
 bool blk_mq_end_io_partial(struct request *rq, int error, unsigned int nr_bytes)
 {
-	if (blk_update_request(rq, error, blk_rq_bytes(rq)))
-		return true;
+	struct bio *bio = rq->bio;
+	unsigned int bytes = 0;
+
+	trace_block_rq_complete(rq->q, rq, blk_rq_bytes(rq));
+
+	while (bio) {
+		struct bio *next = bio->bi_next;
+
+		bio->bi_next = NULL;
+		bytes += bio->bi_iter.bi_size;
+		blk_mq_bio_endio(rq, bio, error);
+		bio = next;
+	}
+
+	blk_account_io_completion(rq, bytes);
 
 	blk_account_io_done(rq);
 
