@@ -1202,6 +1202,10 @@ static inline unsigned int snd_soc_enum_item_to_val(struct soc_enum *e,
 		return item;
 
 	return e->values[item];
+
+static inline bool snd_soc_codec_is_active(struct snd_soc_codec *codec)
+{
+	return codec->active != 0;
 }
 
 int snd_soc_util_init(void);
