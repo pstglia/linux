@@ -1831,6 +1831,7 @@ int usb_hub_claim_port(struct usb_device *hdev, unsigned port1,
 	*powner = owner;
 	return rc;
 }
+EXPORT_SYMBOL_GPL(usb_hub_claim_port);
 
 int usb_hub_release_port(struct usb_device *hdev, unsigned port1,
 			 struct dev_state *owner)
@@ -1846,6 +1847,7 @@ int usb_hub_release_port(struct usb_device *hdev, unsigned port1,
 	*powner = NULL;
 	return rc;
 }
+EXPORT_SYMBOL_GPL(usb_hub_release_port);
 
 void usb_hub_release_all_ports(struct usb_device *hdev, struct dev_state *owner)
 {
