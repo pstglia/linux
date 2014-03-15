@@ -348,7 +348,243 @@ static void l2x0_disable(void)
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
-static void l2x0_unlock(u32 cache_id)
+static void l2x0_enable(void __iomem *base, u32 aux, unsigned num_lock)
+{
+	unsigned id;
+
+	id = readl_relaxed(base + L2X0_CACHE_ID) & L2X0_CACHE_ID_PART_MASK;
+	if (id == L2X0_CACHE_ID_PART_L310)
+		num_lock = 8;
+	else
+		num_lock = 1;
+
+	/* l2x0 controller is disabled */
+	writel_relaxed(aux, base + L2X0_AUX_CTRL);
+
+	/* Make sure that I&D is not locked down when starting */
+	l2c_unlock(base, num_lock);
+
+	l2x0_inv_all();
+
+	/* enable L2X0 */
+	writel_relaxed(L2X0_CTRL_EN, base + L2X0_CTRL);
+}
+
+static void l2x0_resume(void)
+{
+	void __iomem *base = l2x0_base;
+
+	if (!(readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN))
+		l2x0_enable(base, l2x0_saved_regs.aux_ctrl, 0);
+}
+
+static const struct l2c_init_data l2x0_init_fns __initconst = {
+	.enable = l2x0_enable,
+	.outer_cache = {
+		.inv_range = l2x0_inv_range,
+		.clean_range = l2x0_clean_range,
+		.flush_range = l2x0_flush_range,
+		.flush_all = l2x0_flush_all,
+		.disable = l2x0_disable,
+		.sync = l2x0_cache_sync,
+		.resume = l2x0_resume,
+	},
+};
+
+/*
+ * L2C-210 specific code.
+ *
+ * The L2C-2x0 PA, set/way and sync operations are atomic, but we must
+ * ensure that no background operation is running.  The way operations
+ * are all background tasks.
+ *
+ * While a background operation is in progress, any new operation is
+ * ignored (unspecified whether this causes an error.)  Thankfully, not
+ * used on SMP.
+ *
+ * Never has a different sync register other than L2X0_CACHE_SYNC, but
+ * we use sync_reg_offset here so we can share some of this with L2C-310.
+ */
+static void __l2c210_cache_sync(void __iomem *base)
+{
+	writel_relaxed(0, base + sync_reg_offset);
+}
+
+static void __l2c210_op_pa_range(void __iomem *reg, unsigned long start,
+	unsigned long end)
+{
+	while (start < end) {
+		writel_relaxed(start, reg);
+		start += CACHE_LINE_SIZE;
+	}
+}
+
+static void l2c210_inv_range(unsigned long start, unsigned long end)
+{
+	void __iomem *base = l2x0_base;
+
+	if (start & (CACHE_LINE_SIZE - 1)) {
+		start &= ~(CACHE_LINE_SIZE - 1);
+		writel_relaxed(start, base + L2X0_CLEAN_INV_LINE_PA);
+		start += CACHE_LINE_SIZE;
+	}
+
+	if (end & (CACHE_LINE_SIZE - 1)) {
+		end &= ~(CACHE_LINE_SIZE - 1);
+		writel_relaxed(end, base + L2X0_CLEAN_INV_LINE_PA);
+	}
+
+	__l2c210_op_pa_range(base + L2X0_INV_LINE_PA, start, end);
+	__l2c210_cache_sync(base);
+}
+
+static void l2c210_clean_range(unsigned long start, unsigned long end)
+{
+	void __iomem *base = l2x0_base;
+
+	start &= ~(CACHE_LINE_SIZE - 1);
+	__l2c210_op_pa_range(base + L2X0_CLEAN_LINE_PA, start, end);
+	__l2c210_cache_sync(base);
+}
+
+static void l2c210_flush_range(unsigned long start, unsigned long end)
+{
+	void __iomem *base = l2x0_base;
+
+	start &= ~(CACHE_LINE_SIZE - 1);
+	__l2c210_op_pa_range(base + L2X0_CLEAN_INV_LINE_PA, start, end);
+	__l2c210_cache_sync(base);
+}
+
+static void l2c210_flush_all(void)
+{
+	void __iomem *base = l2x0_base;
+
+	BUG_ON(!irqs_disabled());
+
+	__l2c_op_way(base + L2X0_CLEAN_INV_WAY);
+	__l2c210_cache_sync(base);
+}
+
+static void l2c210_sync(void)
+{
+	__l2c210_cache_sync(l2x0_base);
+}
+
+static void l2c210_resume(void)
+{
+	void __iomem *base = l2x0_base;
+
+	if (!(readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN))
+		l2c_enable(base, l2x0_saved_regs.aux_ctrl, 1);
+}
+
+static const struct l2c_init_data l2c210_data __initconst = {
+	.num_lock = 1,
+	.enable = l2c_enable,
+	.outer_cache = {
+		.inv_range = l2c210_inv_range,
+		.clean_range = l2c210_clean_range,
+		.flush_range = l2c210_flush_range,
+		.flush_all = l2c210_flush_all,
+		.disable = l2c_disable,
+		.sync = l2c210_sync,
+		.resume = l2c210_resume,
+	},
+};
+
+/*
+ * L2C-310 specific code.
+ *
+ * Errata:
+ * 588369: PL310 R0P0->R1P0, fixed R2P0.
+ *	Affects: all clean+invalidate operations
+ *	clean and invalidate skips the invalidate step, so we need to issue
+ *	separate operations.  We also require the above debug workaround
+ *	enclosing this code fragment on affected parts.  On unaffected parts,
+ *	we must not use this workaround without the debug register writes
+ *	to avoid exposing a problem similar to 727915.
+ *
+ * 727915: PL310 R2P0->R3P0, fixed R3P1.
+ *	Affects: clean+invalidate by way
+ *	clean and invalidate by way runs in the background, and a store can
+ *	hit the line between the clean operation and invalidate operation,
+ *	resulting in the store being lost.
+ *
+ * 753970: PL310 R3P0, fixed R3P1.
+ *	Affects: sync
+ *	prevents merging writes after the sync operation, until another L2C
+ *	operation is performed (or a number of other conditions.)
+ *
+ * 769419: PL310 R0P0->R3P1, fixed R3P2.
+ *	Affects: store buffer
+ *	store buffer is not automatically drained.
+ */
+static void l2c310_set_debug(unsigned long val)
+{
+	writel_relaxed(val, l2x0_base + L2X0_DEBUG_CTRL);
+}
+
+static void __init l2c310_save(void __iomem *base)
+{
+	unsigned revision;
+
+	l2x0_saved_regs.tag_latency = readl_relaxed(base +
+		L2X0_TAG_LATENCY_CTRL);
+	l2x0_saved_regs.data_latency = readl_relaxed(base +
+		L2X0_DATA_LATENCY_CTRL);
+	l2x0_saved_regs.filter_end = readl_relaxed(base +
+		L2X0_ADDR_FILTER_END);
+	l2x0_saved_regs.filter_start = readl_relaxed(base +
+		L2X0_ADDR_FILTER_START);
+
+	revision = readl_relaxed(base + L2X0_CACHE_ID) &
+			L2X0_CACHE_ID_RTL_MASK;
+
+	/* From r2p0, there is Prefetch offset/control register */
+	if (revision >= L310_CACHE_ID_RTL_R2P0)
+		l2x0_saved_regs.prefetch_ctrl = readl_relaxed(base +
+							L2X0_PREFETCH_CTRL);
+
+	/* From r3p0, there is Power control register */
+	if (revision >= L310_CACHE_ID_RTL_R3P0)
+		l2x0_saved_regs.pwr_ctrl = readl_relaxed(base +
+							L2X0_POWER_CTRL);
+}
+
+static void l2c310_resume(void)
+{
+	void __iomem *base = l2x0_base;
+
+	if (!(readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+		unsigned revision;
+
+		/* restore pl310 setup */
+		writel_relaxed(l2x0_saved_regs.tag_latency,
+			       base + L2X0_TAG_LATENCY_CTRL);
+		writel_relaxed(l2x0_saved_regs.data_latency,
+			       base + L2X0_DATA_LATENCY_CTRL);
+		writel_relaxed(l2x0_saved_regs.filter_end,
+			       base + L2X0_ADDR_FILTER_END);
+		writel_relaxed(l2x0_saved_regs.filter_start,
+			       base + L2X0_ADDR_FILTER_START);
+
+		revision = readl_relaxed(base + L2X0_CACHE_ID) &
+				L2X0_CACHE_ID_RTL_MASK;
+
+		if (revision >= L310_CACHE_ID_RTL_R2P0)
+			writel_relaxed(l2x0_saved_regs.prefetch_ctrl,
+				       base + L2X0_PREFETCH_CTRL);
+		if (revision >= L310_CACHE_ID_RTL_R3P0)
+			writel_relaxed(l2x0_saved_regs.pwr_ctrl,
+				       base + L2X0_POWER_CTRL);
+
+		l2c_enable(base, l2x0_saved_regs.aux_ctrl, 8);
+	}
+}
+
+static void __init l2c310_fixup(void __iomem *base, u32 cache_id,
+	struct outer_cache_fns *fns)
 {
 	int lockregs;
 	int i;
@@ -476,6 +712,178 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 
 #ifdef CONFIG_OF
 static int l2_wt_override;
+
+/*
+ * Note that the end addresses passed to Linux primitives are
+ * noninclusive, while the hardware cache range operations use
+ * inclusive start and end addresses.
+ */
+static unsigned long calc_range_end(unsigned long start, unsigned long end)
+{
+	/*
+	 * Limit the number of cache lines processed at once,
+	 * since cache range operations stall the CPU pipeline
+	 * until completion.
+	 */
+	if (end > start + MAX_RANGE_SIZE)
+		end = start + MAX_RANGE_SIZE;
+
+	/*
+	 * Cache range operations can't straddle a page boundary.
+	 */
+	if (end > PAGE_ALIGN(start+1))
+		end = PAGE_ALIGN(start+1);
+
+	return end;
+}
+
+/*
+ * Make sure 'start' and 'end' reference the same page, as L2 is PIPT
+ * and range operations only do a TLB lookup on the start address.
+ */
+static void aurora_pa_range(unsigned long start, unsigned long end,
+			unsigned long offset)
+{
+	unsigned long flags;
+
+	case L2X0_CACHE_ID_PART_L210:
+		data = &l2c210_data;
+		break;
+
+	case L2X0_CACHE_ID_PART_L310:
+		data = &l2c310_init_fns;
+		break;
+	}
+
+	cache_sync();
+}
+
+static void aurora_inv_range(unsigned long start, unsigned long end)
+{
+	/*
+	 * round start and end adresses up to cache line size
+	 */
+	start &= ~(CACHE_LINE_SIZE - 1);
+	end = ALIGN(end, CACHE_LINE_SIZE);
+
+	/*
+	 * Invalidate all full cache lines between 'start' and 'end'.
+	 */
+	while (start < end) {
+		unsigned long range_end = calc_range_end(start, end);
+		aurora_pa_range(start, range_end - CACHE_LINE_SIZE,
+				AURORA_INVAL_RANGE_REG);
+		start = range_end;
+	}
+}
+
+static void aurora_clean_range(unsigned long start, unsigned long end)
+{
+	/*
+	 * If L2 is forced to WT, the L2 will always be clean and we
+	 * don't need to do anything here.
+	 */
+	if (!l2_wt_override) {
+		start &= ~(CACHE_LINE_SIZE - 1);
+		end = ALIGN(end, CACHE_LINE_SIZE);
+		while (start != end) {
+			unsigned long range_end = calc_range_end(start, end);
+			aurora_pa_range(start, range_end - CACHE_LINE_SIZE,
+					AURORA_CLEAN_RANGE_REG);
+			start = range_end;
+		}
+	}
+
+	of_property_read_u32(np, "arm,dirty-latency", &dirty);
+	if (dirty) {
+		mask |= L2X0_AUX_CTRL_DIRTY_LATENCY_MASK;
+		val |= (dirty - 1) << L2X0_AUX_CTRL_DIRTY_LATENCY_SHIFT;
+	}
+
+	*aux_val &= ~mask;
+	*aux_val |= val;
+	*aux_mask &= ~mask;
+}
+
+static const struct l2c_init_data of_l2c210_data __initconst = {
+	.num_lock = 1,
+	.of_parse = l2x0_of_parse,
+	.enable = l2c_enable,
+	.outer_cache = {
+		.inv_range   = l2c210_inv_range,
+		.clean_range = l2c210_clean_range,
+		.flush_range = l2c210_flush_range,
+		.flush_all   = l2c210_flush_all,
+		.disable     = l2c_disable,
+		.sync        = l2c210_sync,
+		.resume      = l2c210_resume,
+	},
+};
+
+static const struct l2c_init_data of_l2x0_data __initconst = {
+	.of_parse = l2x0_of_parse,
+	.enable = l2x0_enable,
+	.outer_cache = {
+		.inv_range   = l2x0_inv_range,
+		.clean_range = l2x0_clean_range,
+		.flush_range = l2x0_flush_range,
+		.flush_all   = l2x0_flush_all,
+		.disable     = l2x0_disable,
+		.sync        = l2x0_cache_sync,
+		.resume      = l2x0_resume,
+	},
+};
+
+static void __init pl310_of_parse(const struct device_node *np,
+				  u32 *aux_val, u32 *aux_mask)
+{
+	u32 data[3] = { 0, 0, 0 };
+	u32 tag[3] = { 0, 0, 0 };
+	u32 filter[2] = { 0, 0 };
+
+	of_property_read_u32_array(np, "arm,tag-latency", tag, ARRAY_SIZE(tag));
+	if (tag[0] && tag[1] && tag[2])
+		writel_relaxed(
+			((tag[0] - 1) << L2X0_LATENCY_CTRL_RD_SHIFT) |
+			((tag[1] - 1) << L2X0_LATENCY_CTRL_WR_SHIFT) |
+			((tag[2] - 1) << L2X0_LATENCY_CTRL_SETUP_SHIFT),
+			l2x0_base + L2X0_TAG_LATENCY_CTRL);
+
+	of_property_read_u32_array(np, "arm,data-latency",
+				   data, ARRAY_SIZE(data));
+	if (data[0] && data[1] && data[2])
+		writel_relaxed(
+			((data[0] - 1) << L2X0_LATENCY_CTRL_RD_SHIFT) |
+			((data[1] - 1) << L2X0_LATENCY_CTRL_WR_SHIFT) |
+			((data[2] - 1) << L2X0_LATENCY_CTRL_SETUP_SHIFT),
+			l2x0_base + L2X0_DATA_LATENCY_CTRL);
+
+	of_property_read_u32_array(np, "arm,filter-ranges",
+				   filter, ARRAY_SIZE(filter));
+	if (filter[1]) {
+		writel_relaxed(ALIGN(filter[0] + filter[1], SZ_1M),
+			       l2x0_base + L2X0_ADDR_FILTER_END);
+		writel_relaxed((filter[0] & ~(SZ_1M - 1)) | L2X0_ADDR_FILTER_EN,
+			       l2x0_base + L2X0_ADDR_FILTER_START);
+	}
+}
+
+static const struct l2c_init_data of_pl310_data __initconst = {
+	.num_lock = 8,
+	.of_parse = pl310_of_parse,
+	.enable = l2c_enable,
+	.fixup = l2c310_fixup,
+	.save  = l2c310_save,
+	.outer_cache = {
+		.inv_range   = l2x0_inv_range,
+		.clean_range = l2x0_clean_range,
+		.flush_range = l2x0_flush_range,
+		.flush_all   = l2x0_flush_all,
+		.disable     = l2x0_disable,
+		.sync        = l2x0_cache_sync,
+		.resume      = l2c310_resume,
+	},
+};
 
 /*
  * Note that the end addresses passed to Linux primitives are
@@ -998,7 +1406,7 @@ static const struct l2c_init_data of_bcm_l2x0_data __initconst = {
 
 #define L2C_ID(name, fns) { .compatible = name, .data = (void *)&fns }
 static const struct of_device_id l2x0_ids[] __initconst = {
-	L2C_ID("arm,l210-cache", of_l2x0_data),
+	L2C_ID("arm,l210-cache", of_l2c210_data),
 	L2C_ID("arm,l220-cache", of_l2x0_data),
 	L2C_ID("arm,pl310-cache", of_pl310_data),
 	L2C_ID("brcm,bcm11351-a2-pl310-cache", of_bcm_l2x0_data),
