@@ -869,75 +869,69 @@ c4_ioctl(struct net_device *ndev, struct ifreq *ifr, int cmd)
 		_IOC_DIR(iocmd), _IOC_TYPE(iocmd), _IOC_NR(iocmd),
 		_IOC_SIZE(iocmd));
 #endif
-    iolen = _IOC_SIZE (iocmd);
-    if (iolen > sizeof(arg))
-        return -EFAULT;
-    data = ifr->ifr_data + sizeof (iocmd);
-    if (copy_from_user (&arg, data, iolen))
-        return -EFAULT;
+	iolen = _IOC_SIZE(iocmd);
+	if (iolen > sizeof(arg))
+		return -EFAULT;
+	data = ifr->ifr_data + sizeof(iocmd);
+	if (copy_from_user(&arg, data, iolen))
+		return -EFAULT;
 
-    ret = 0;
-    switch (iocmd)
-    {
-    case SBE_IOC_PORT_GET:
-        //pr_info(">> SBE_IOC_PORT_GET Ioctl...\n");
-        ret = do_get_port(ndev, data);
-        break;
-    case SBE_IOC_PORT_SET:
-        //pr_info(">> SBE_IOC_PORT_SET Ioctl...\n");
-        ret = do_set_port(ndev, data);
-        break;
-    case SBE_IOC_CHAN_GET:
-        //pr_info(">> SBE_IOC_CHAN_GET Ioctl...\n");
-        ret = do_get_chan(ndev, data);
-        break;
-    case SBE_IOC_CHAN_SET:
-        //pr_info(">> SBE_IOC_CHAN_SET Ioctl...\n");
-        ret = do_set_chan(ndev, data);
-        break;
-    case C4_DEL_CHAN:
-        //pr_info(">> C4_DEL_CHAN Ioctl...\n");
-        ret = do_del_chan(ndev, data);
-        break;
-    case SBE_IOC_CHAN_NEW:
-        ret = do_create_chan(ndev, data);
-        break;
-    case SBE_IOC_CHAN_GET_STAT:
-        ret = do_get_chan_stats(ndev, data);
-        break;
-    case SBE_IOC_LOGLEVEL:
-        ret = do_set_loglevel(ndev, data);
-        break;
-    case SBE_IOC_RESET_DEV:
-        ret = do_reset(ndev, data);
-        break;
-    case SBE_IOC_CHAN_DEL_STAT:
-        ret = do_reset_chan_stats(ndev, data);
-        break;
-    case C4_LOOP_PORT:
-        ret = do_port_loop(ndev, data);
-        break;
-    case C4_RW_FRMR:
-        ret = do_framer_rw(ndev, data);
-        break;
-    case C4_RW_MSYC:
-        ret = do_musycc_rw(ndev, data);
-        break;
-    case C4_RW_PLD:
-        ret = do_pld_rw(ndev, data);
-        break;
-    case SBE_IOC_IID_GET:
-        ret = (iolen == sizeof(struct sbe_iid_info)) ? c4_get_iidinfo(ci, &arg.u.iip) : -EFAULT;
-        if (ret == 0)               /* no error, copy data */
-            if (copy_to_user(data, &arg, iolen))
-                return -EFAULT;
-        break;
-    default:
-        //pr_info(">> c4_ioctl: EINVAL - unknown iocmd <%x>\n", iocmd);
-        ret = -EINVAL;
-        break;
-    }
-    return mkret(ret);
+	ret = 0;
+	switch (iocmd) {
+	case SBE_IOC_PORT_GET:
+		ret = do_get_port(ndev, data);
+		break;
+	case SBE_IOC_PORT_SET:
+		ret = do_set_port(ndev, data);
+		break;
+	case SBE_IOC_CHAN_GET:
+		ret = do_get_chan(ndev, data);
+		break;
+	case SBE_IOC_CHAN_SET:
+		ret = do_set_chan(ndev, data);
+		break;
+	case C4_DEL_CHAN:
+		ret = do_del_chan(ndev, data);
+		break;
+	case SBE_IOC_CHAN_NEW:
+		ret = do_create_chan(ndev, data);
+		break;
+	case SBE_IOC_CHAN_GET_STAT:
+		ret = do_get_chan_stats(ndev, data);
+		break;
+	case SBE_IOC_LOGLEVEL:
+		ret = do_set_loglevel(ndev, data);
+		break;
+	case SBE_IOC_RESET_DEV:
+		ret = do_reset(ndev, data);
+		break;
+	case SBE_IOC_CHAN_DEL_STAT:
+		ret = do_reset_chan_stats(ndev, data);
+		break;
+	case C4_LOOP_PORT:
+		ret = do_port_loop(ndev, data);
+		break;
+	case C4_RW_FRMR:
+		ret = do_framer_rw(ndev, data);
+		break;
+	case C4_RW_MSYC:
+		ret = do_musycc_rw(ndev, data);
+		break;
+	case C4_RW_PLD:
+		ret = do_pld_rw(ndev, data);
+		break;
+	case SBE_IOC_IID_GET:
+		ret = (iolen == sizeof(struct sbe_iid_info)) ?
+		       c4_get_iidinfo(ci, &arg.u.iip) : -EFAULT;
+		if (ret == 0)               /* no error, copy data */
+			if (copy_to_user(data, &arg, iolen))
+				return -EFAULT;
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+	return mkret(ret);
 }
 
 static const struct net_device_ops c4_ops = {
