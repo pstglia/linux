@@ -1216,6 +1216,8 @@ void intel_edp_panel_off(struct intel_dp *intel_dp)
 
 	edp_wait_backlight_off(intel_dp);
 
+	WARN(!intel_dp->want_panel_vdd, "Need VDD to turn off panel\n");
+
 	pp = ironlake_get_pp_control(intel_dp);
 	/* We need to switch off panel power _and_ force vdd, for otherwise some
 	 * panels get very unhappy and cease to work. */
@@ -1764,7 +1766,7 @@ static void intel_disable_dp(struct intel_encoder *encoder)
 
 	/* Make sure the panel is off before trying to change the mode. But also
 	 * ensure that we have vdd while we switch off the panel. */
-	edp_panel_vdd_on(intel_dp);
+	intel_edp_panel_vdd_on(intel_dp);
 	intel_edp_backlight_off(intel_dp);
 	intel_dp_sink_dpms(intel_dp, DRM_MODE_DPMS_OFF);
 	intel_edp_panel_off(intel_dp);
@@ -1797,7 +1799,7 @@ static void intel_enable_dp(struct intel_encoder *encoder)
 	if (WARN_ON(dp_reg & DP_PORT_EN))
 		return;
 
-	edp_panel_vdd_on(intel_dp);
+	intel_edp_panel_vdd_on(intel_dp);
 	intel_dp_sink_dpms(intel_dp, DRM_MODE_DPMS_ON);
 	intel_dp_start_link_train(intel_dp);
 	intel_edp_panel_on(intel_dp);
@@ -2833,7 +2835,7 @@ intel_dp_probe_oui(struct intel_dp *intel_dp)
 	if (!(intel_dp->dpcd[DP_DOWN_STREAM_PORT_COUNT] & DP_OUI_SUPPORT))
 		return;
 
-	edp_panel_vdd_on(intel_dp);
+	intel_edp_panel_vdd_on(intel_dp);
 
 	if (intel_dp_dpcd_read_wake(&intel_dp->aux, DP_SINK_OUI, buf, 3) == 3)
 		DRM_DEBUG_KMS("Sink OUI: %02hx%02hx%02hx\n",
@@ -3626,7 +3628,7 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 		return true;
 
 	/* Cache DPCD and EDID for edp. */
-	edp_panel_vdd_on(intel_dp);
+	intel_edp_panel_vdd_on(intel_dp);
 	has_dpcd = intel_dp_get_dpcd(intel_dp);
 	edp_panel_vdd_off(intel_dp, false);
 
