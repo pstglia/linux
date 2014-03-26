@@ -1337,8 +1337,8 @@ void i915_gem_suspend_gtt_mappings(struct drm_device *dev)
 	i915_check_and_clear_faults(dev);
 
 	dev_priv->gtt.base.clear_range(&dev_priv->gtt.base,
-				       dev_priv->gtt.base.start / PAGE_SIZE,
-				       dev_priv->gtt.base.total / PAGE_SIZE,
+				       dev_priv->gtt.base.start,
+				       dev_priv->gtt.base.total,
 				       true);
 }
 
