@@ -2815,13 +2815,8 @@ static int mvneta_probe(struct platform_device *pdev)
 	clk_prepare_enable(pp->clk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		err = -ENODEV;
-		goto err_clk;
-	}
-
 	pp->base = devm_ioremap_resource(&pdev->dev, res);
-	if (pp->base == NULL) {
+	if (IS_ERR(pp->base)) {
 		err = PTR_ERR(pp->base);
 		goto err_clk;
 	}
