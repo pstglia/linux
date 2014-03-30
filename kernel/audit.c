@@ -607,7 +607,7 @@ static int audit_netlink_ok(struct sk_buff *skb, u16 msg_type)
 {
 	int err = 0;
 
-	/* Only support the initial namespaces for now. */
+	/* Only support initial user namespace for now. */
 	/*
 	 * We return ECONNREFUSED because it tricks userspace into thinking
 	 * that audit was not configured into the kernel.  Lots of users
@@ -618,8 +618,7 @@ static int audit_netlink_ok(struct sk_buff *skb, u16 msg_type)
 	 * userspace will reject all logins.  This should be removed when we
 	 * support non init namespaces!!
 	 */
-	if ((current_user_ns() != &init_user_ns) ||
-	    (task_active_pid_ns(current) != &init_pid_ns))
+	if ((current_user_ns() != &init_user_ns))
 		return -ECONNREFUSED;
 
 	switch (msg_type) {
