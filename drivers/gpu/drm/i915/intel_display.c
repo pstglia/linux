@@ -5224,9 +5224,6 @@ static void vlv_update_pll(struct intel_crtc *crtc)
 		<< DPLL_MD_UDI_MULTIPLIER_SHIFT;
 	crtc->config.dpll_hw_state.dpll_md = dpll_md;
 
-	if (crtc->config.has_dp_encoder)
-		intel_dp_set_m_n(crtc);
-
 	mutex_unlock(&dev_priv->dpio_lock);
 }
 
@@ -5304,9 +5301,6 @@ static void i9xx_update_pll(struct intel_crtc *crtc,
 			<< DPLL_MD_UDI_MULTIPLIER_SHIFT;
 		crtc->config.dpll_hw_state.dpll_md = dpll_md;
 	}
-
-	if (crtc->config.has_dp_encoder)
-		intel_dp_set_m_n(crtc);
 }
 
 static void i8xx_update_pll(struct intel_crtc *crtc,
@@ -5634,6 +5628,9 @@ skip_dpll:
 		else
 			dspcntr |= DISPPLANE_SEL_PIPE_B;
 	}
+
+	if (intel_crtc->config.has_dp_encoder)
+		intel_dp_set_m_n(intel_crtc);
 
 	intel_set_pipe_timings(intel_crtc);
 
