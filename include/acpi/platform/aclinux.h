@@ -89,7 +89,7 @@
 #include <ctype.h>
 #include <unistd.h>
 
-/* Disable kernel specific declarators */
+/* Define/disable kernel-specific declarators */
 
 #ifndef __init
 #define __init
