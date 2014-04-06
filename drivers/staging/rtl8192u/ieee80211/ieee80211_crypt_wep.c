@@ -17,6 +17,7 @@
 #include <linux/skbuff.h>
 #include <asm/string.h>
 
+#include "../r8180.h"
 #include "ieee80211.h"
 
 #include <linux/crypto.h>

@@ -18,6 +18,7 @@
 #include <asm/string.h>
 #include <asm/errno.h>
 
+#include "../r8180.h"
 #include "ieee80211.h"
 
 MODULE_AUTHOR("Jouni Malinen");
