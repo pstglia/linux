@@ -800,7 +800,7 @@ next_slot:
 		if (start > key.offset && end < extent_end) {
 			BUG_ON(del_nr > 0);
 			if (extent_type == BTRFS_FILE_EXTENT_INLINE) {
-				ret = -EINVAL;
+				ret = -EOPNOTSUPP;
 				break;
 			}
 
@@ -846,7 +846,7 @@ next_slot:
 		 */
 		if (start <= key.offset && end < extent_end) {
 			if (extent_type == BTRFS_FILE_EXTENT_INLINE) {
-				ret = -EINVAL;
+				ret = -EOPNOTSUPP;
 				break;
 			}
 
@@ -872,7 +872,7 @@ next_slot:
 		if (start > key.offset && end >= extent_end) {
 			BUG_ON(del_nr > 0);
 			if (extent_type == BTRFS_FILE_EXTENT_INLINE) {
-				ret = -EINVAL;
+				ret = -EOPNOTSUPP;
 				break;
 			}
 
