@@ -94,7 +94,7 @@ static int __xfrm4_output(struct sk_buff *skb)
 	return x->outer_mode->afinfo->output_finish(skb);
 }
 
-int xfrm4_output(struct sk_buff *skb)
+int xfrm4_output(struct sock *sk, struct sk_buff *skb)
 {
 	return NF_HOOK_COND(NFPROTO_IPV4, NF_INET_POST_ROUTING, skb,
 			    NULL, skb_dst(skb)->dev, __xfrm4_output,
