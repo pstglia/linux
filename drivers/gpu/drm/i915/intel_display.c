@@ -8848,6 +8848,48 @@ void intel_finish_page_flip_plane(struct drm_device *dev, int plane)
 	do_intel_finish_page_flip(dev, crtc);
 }
 
+/* Is 'a' after or equal to 'b'? */
+static bool g4x_flip_count_after_eq(u32 a, u32 b)
+{
+	return !((a - b) & 0x80000000);
+}
+
+static bool page_flip_finished(struct intel_crtc *crtc)
+{
+	struct drm_device *dev = crtc->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	/*
+	 * The relevant registers doen't exist on pre-ctg.
+	 * As the flip done interrupt doesn't trigger for mmio
+	 * flips on gmch platforms, a flip count check isn't
+	 * really needed there. But since ctg has the registers,
+	 * include it in the check anyway.
+	 */
+	if (INTEL_INFO(dev)->gen < 5 && !IS_G4X(dev))
+		return true;
+
+	/*
+	 * A DSPSURFLIVE check isn't enough in case the mmio and CS flips
+	 * used the same base address. In that case the mmio flip might
+	 * have completed, but the CS hasn't even executed the flip yet.
+	 *
+	 * A flip count check isn't enough as the CS might have updated
+	 * the base address just after start of vblank, but before we
+	 * managed to process the interrupt. This means we'd complete the
+	 * CS flip too soon.
+	 *
+	 * Combining both checks should get us a good enough result. It may
+	 * still happen that the CS flip has been executed, but has not
+	 * yet actually completed. But in case the base address is the same
+	 * anyway, we don't really care.
+	 */
+	return (I915_READ(DSPSURFLIVE(crtc->plane)) & ~0xfff) ==
+		crtc->unpin_work->gtt_offset &&
+		g4x_flip_count_after_eq(I915_READ(PIPE_FLIPCOUNT_GM45(crtc->pipe)),
+				    crtc->unpin_work->flip_count);
+}
+
 void intel_prepare_page_flip(struct drm_device *dev, int plane)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -8860,7 +8902,7 @@ void intel_prepare_page_flip(struct drm_device *dev, int plane)
 	 * is also accompanied by a spurious intel_prepare_page_flip().
 	 */
 	spin_lock_irqsave(&dev->event_lock, flags);
-	if (intel_crtc->unpin_work)
+	if (intel_crtc->unpin_work && page_flip_finished(intel_crtc))
 		atomic_inc_not_zero(&intel_crtc->unpin_work->pending);
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
@@ -8890,6 +8932,9 @@ static int intel_gen2_queue_flip(struct drm_device *dev,
 	if (ret)
 		goto err;
 
+	intel_crtc->unpin_work->gtt_offset =
+		i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset;
+
 	ret = intel_ring_begin(ring, 6);
 	if (ret)
 		goto err_unpin;
@@ -8906,7 +8951,7 @@ static int intel_gen2_queue_flip(struct drm_device *dev,
 	intel_ring_emit(ring, MI_DISPLAY_FLIP |
 			MI_DISPLAY_FLIP_PLANE(intel_crtc->plane));
 	intel_ring_emit(ring, fb->pitches[0]);
-	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset);
+	intel_ring_emit(ring, intel_crtc->unpin_work->gtt_offset);
 	intel_ring_emit(ring, 0); /* aux display base address, unused */
 
 	intel_mark_page_flip_active(intel_crtc);
@@ -8935,6 +8980,9 @@ static int intel_gen3_queue_flip(struct drm_device *dev,
 	if (ret)
 		goto err;
 
+	intel_crtc->unpin_work->gtt_offset =
+		i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset;
+
 	ret = intel_ring_begin(ring, 6);
 	if (ret)
 		goto err_unpin;
@@ -8948,7 +8996,7 @@ static int intel_gen3_queue_flip(struct drm_device *dev,
 	intel_ring_emit(ring, MI_DISPLAY_FLIP_I915 |
 			MI_DISPLAY_FLIP_PLANE(intel_crtc->plane));
 	intel_ring_emit(ring, fb->pitches[0]);
-	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset);
+	intel_ring_emit(ring, intel_crtc->unpin_work->gtt_offset);
 	intel_ring_emit(ring, MI_NOOP);
 
 	intel_mark_page_flip_active(intel_crtc);
@@ -8977,6 +9025,9 @@ static int intel_gen4_queue_flip(struct drm_device *dev,
 	if (ret)
 		goto err;
 
+	intel_crtc->unpin_work->gtt_offset =
+		i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset;
+
 	ret = intel_ring_begin(ring, 4);
 	if (ret)
 		goto err_unpin;
@@ -8988,8 +9039,7 @@ static int intel_gen4_queue_flip(struct drm_device *dev,
 	intel_ring_emit(ring, MI_DISPLAY_FLIP |
 			MI_DISPLAY_FLIP_PLANE(intel_crtc->plane));
 	intel_ring_emit(ring, fb->pitches[0]);
-	intel_ring_emit(ring,
-			(i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset) |
+	intel_ring_emit(ring, intel_crtc->unpin_work->gtt_offset |
 			obj->tiling_mode);
 
 	/* XXX Enabling the panel-fitter across page-flip is so far
@@ -9026,6 +9076,9 @@ static int intel_gen6_queue_flip(struct drm_device *dev,
 	if (ret)
 		goto err;
 
+	intel_crtc->unpin_work->gtt_offset =
+		i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset;
+
 	ret = intel_ring_begin(ring, 4);
 	if (ret)
 		goto err_unpin;
@@ -9033,7 +9086,7 @@ static int intel_gen6_queue_flip(struct drm_device *dev,
 	intel_ring_emit(ring, MI_DISPLAY_FLIP |
 			MI_DISPLAY_FLIP_PLANE(intel_crtc->plane));
 	intel_ring_emit(ring, fb->pitches[0] | obj->tiling_mode);
-	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset);
+	intel_ring_emit(ring, intel_crtc->unpin_work->gtt_offset);
 
 	/* Contrary to the suggestions in the documentation,
 	 * "Enable Panel Fitter" does not seem to be required when page
@@ -9074,6 +9127,9 @@ static int intel_gen7_queue_flip(struct drm_device *dev,
 	ret = intel_pin_and_fence_fb_obj(dev, obj, ring);
 	if (ret)
 		goto err;
+
+	intel_crtc->unpin_work->gtt_offset =
+		i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset;
 
 	switch (intel_crtc->plane) {
 	case PLANE_A:
@@ -9152,7 +9208,7 @@ static int intel_gen7_queue_flip(struct drm_device *dev,
 
 	intel_ring_emit(ring, MI_DISPLAY_FLIP_I915 | plane_bit);
 	intel_ring_emit(ring, (fb->pitches[0] | obj->tiling_mode));
-	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(obj) + intel_crtc->dspaddr_offset);
+	intel_ring_emit(ring, intel_crtc->unpin_work->gtt_offset);
 	intel_ring_emit(ring, (MI_NOOP));
 
 	intel_mark_page_flip_active(intel_crtc);
@@ -9249,6 +9305,9 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 
 	atomic_inc(&intel_crtc->unpin_work_count);
 	intel_crtc->reset_counter = atomic_read(&dev_priv->gpu_error.reset_counter);
+
+	if (INTEL_INFO(dev)->gen >= 5 || IS_G4X(dev))
+		work->flip_count = I915_READ(PIPE_FLIPCOUNT_GM45(intel_crtc->pipe)) + 1;
 
 	ret = dev_priv->display.queue_flip(dev, crtc, fb, obj, page_flip_flags);
 	if (ret)
