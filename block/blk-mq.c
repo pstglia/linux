@@ -294,33 +294,24 @@ void blk_mq_clone_flush_request(struct request *flush_rq,
 		hctx->cmd_size);
 }
 
-bool blk_mq_end_io_partial(struct request *rq, int error, unsigned int nr_bytes)
+inline void __blk_mq_end_io(struct request *rq, int error)
 {
-	struct bio *bio = rq->bio;
-	unsigned int bytes = 0;
-
-	trace_block_rq_complete(rq->q, rq, blk_rq_bytes(rq));
-
-	while (bio) {
-		struct bio *next = bio->bi_next;
-
-		bio->bi_next = NULL;
-		bytes += bio->bi_iter.bi_size;
-		blk_mq_bio_endio(rq, bio, error);
-		bio = next;
-	}
-
-	blk_account_io_completion(rq, bytes);
-
 	blk_account_io_done(rq);
 
 	if (rq->end_io)
 		rq->end_io(rq, error);
 	else
 		blk_mq_free_request(rq);
-	return false;
 }
-EXPORT_SYMBOL(blk_mq_end_io_partial);
+EXPORT_SYMBOL(__blk_mq_end_io);
+
+void blk_mq_end_io(struct request *rq, int error)
+{
+	if (blk_update_request(rq, error, blk_rq_bytes(rq)))
+		BUG();
+	__blk_mq_end_io(rq, error);
+}
+EXPORT_SYMBOL(blk_mq_end_io);
 
 static void __blk_mq_complete_request_remote(void *data)
 {
