@@ -142,7 +142,7 @@ static int __init setup_early_printk(char *buf)
 	/* no options parsing yet */
 
 	if (paddr)
-		early_base = early_io_map(paddr, EARLYCON_IOBASE);
+		early_base = (void __iomem *)set_fixmap_offset_io(FIX_EARLYCON_MEM_BASE, paddr);
 
 	printch = match->printch;
 	early_console = &early_console_dev;
