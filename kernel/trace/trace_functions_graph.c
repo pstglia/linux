@@ -1496,7 +1496,6 @@ static struct tracer graph_trace __tracer_data = {
 	.pipe_open	= graph_trace_open,
 	.close		= graph_trace_close,
 	.pipe_close	= graph_trace_close,
-	.wait_pipe	= poll_wait_pipe,
 	.init		= graph_trace_init,
 	.reset		= graph_trace_reset,
 	.print_line	= print_graph_function,
