@@ -497,7 +497,7 @@ static void __init mm_init(void)
 	vmalloc_init();
 }
 
-asmlinkage void __init start_kernel(void)
+asmlinkage __visible void __init start_kernel(void)
 {
 	char * command_line, *after_dashes;
 	extern const struct kernel_param __start___param[], __stop___param[];
