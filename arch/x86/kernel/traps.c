@@ -168,10 +168,7 @@ do_trap(int trapnr, int signr, char *str, struct pt_regs *regs,
 	}
 #endif
 
-	if (info)
-		force_sig_info(signr, info, tsk);
-	else
-		force_sig(signr, tsk);
+	force_sig_info(signr, info ?: SEND_SIG_PRIV, tsk);
 }
 NOKPROBE_SYMBOL(do_trap);
 
@@ -306,7 +303,7 @@ do_general_protection(struct pt_regs *regs, long error_code)
 		pr_cont("\n");
 	}
 
-	force_sig(SIGSEGV, tsk);
+	force_sig_info(SIGSEGV, SEND_SIG_PRIV, tsk);
 exit:
 	exception_exit(prev_state);
 }
@@ -659,7 +656,7 @@ void math_state_restore(void)
 	 */
 	if (unlikely(restore_fpu_checking(tsk))) {
 		drop_init_fpu(tsk);
-		force_sig(SIGSEGV, tsk);
+		force_sig_info(SIGSEGV, SEND_SIG_PRIV, tsk);
 		return;
 	}
 
