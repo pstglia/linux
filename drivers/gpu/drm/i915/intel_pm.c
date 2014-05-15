@@ -3390,7 +3390,7 @@ static int sanitize_rc6_option(const struct drm_device *dev, int enable_rc6)
 
 		if ((enable_rc6 & mask) != enable_rc6)
 			DRM_INFO("Adjusting RC6 mask to %d (requested %d, valid %d)\n",
-				 enable_rc6, enable_rc6 & mask, mask);
+				 enable_rc6 & mask, enable_rc6, mask);
 
 		return enable_rc6 & mask;
 	}
