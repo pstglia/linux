@@ -4624,6 +4624,9 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 	intel_crtc_enable_planes(crtc);
 
 	drm_crtc_vblank_on(crtc);
+
+	/* Underruns don't raise interrupts, so check manually. */
+	i9xx_check_fifo_underruns(dev);
 }
 
 static void i9xx_set_pll_dividers(struct intel_crtc *crtc)
@@ -4703,6 +4706,9 @@ static void i9xx_crtc_enable(struct drm_crtc *crtc)
 	intel_crtc_enable_planes(crtc);
 
 	drm_crtc_vblank_on(crtc);
+
+	/* Underruns don't raise interrupts, so check manually. */
+	i9xx_check_fifo_underruns(dev);
 }
 
 static void i9xx_pfit_disable(struct intel_crtc *crtc)
