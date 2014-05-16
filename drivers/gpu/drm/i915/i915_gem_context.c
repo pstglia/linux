@@ -456,6 +456,8 @@ void i915_gem_context_fini(struct drm_device *dev)
 			i915_gem_context_unreference(dctx);
 			dev_priv->ring[RCS].last_context = NULL;
 		}
+
+		i915_gem_object_ggtt_unpin(dctx->obj);
 	}
 
 	for (i = 0; i < I915_NUM_RINGS; i++) {
@@ -468,7 +470,6 @@ void i915_gem_context_fini(struct drm_device *dev)
 		ring->last_context = NULL;
 	}
 
-	i915_gem_object_ggtt_unpin(dctx->obj);
 	i915_gem_context_unreference(dctx);
 }
 
