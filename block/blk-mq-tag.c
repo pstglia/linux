@@ -20,7 +20,7 @@ static bool bt_has_free_tags(struct blk_mq_bitmap_tags *bt)
 	int i;
 
 	for (i = 0; i < bt->map_nr; i++) {
-		struct blk_mq_bitmap *bm = &bt->map[i];
+		struct blk_align_bitmap *bm = &bt->map[i];
 		int ret;
 
 		ret = find_first_zero_bit(&bm->word, bm->depth);
@@ -360,7 +360,7 @@ static void bt_for_each_free(struct blk_mq_bitmap_tags *bt,
 	int i;
 
 	for (i = 0; i < bt->map_nr; i++) {
-		struct blk_mq_bitmap *bm = &bt->map[i];
+		struct blk_align_bitmap *bm = &bt->map[i];
 		int bit = 0;
 
 		do {
@@ -400,7 +400,7 @@ static unsigned int bt_unused_tags(struct blk_mq_bitmap_tags *bt)
 	unsigned int i, used;
 
 	for (i = 0, used = 0; i < bt->map_nr; i++) {
-		struct blk_mq_bitmap *bm = &bt->map[i];
+		struct blk_align_bitmap *bm = &bt->map[i];
 
 		used += bitmap_weight(&bm->word, bm->depth);
 	}
@@ -438,7 +438,7 @@ static int bt_alloc(struct blk_mq_bitmap_tags *bt, unsigned int depth,
 		}
 
 		nr = ALIGN(depth, tags_per_word) / tags_per_word;
-		bt->map = kzalloc_node(nr * sizeof(struct blk_mq_bitmap),
+		bt->map = kzalloc_node(nr * sizeof(struct blk_align_bitmap),
 						GFP_KERNEL, node);
 		if (!bt->map)
 			return -ENOMEM;
