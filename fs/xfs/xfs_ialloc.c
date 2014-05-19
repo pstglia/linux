@@ -1495,7 +1495,7 @@ xfs_difree_inobt(
 	if (!(mp->m_flags & XFS_MOUNT_IKEEP) &&
 	    (rec.ir_freecount == mp->m_ialloc_inos)) {
 
-		*delete = 1;
+		*deleted = 1;
 		*first_ino = XFS_AGINO_TO_INO(mp, agno, rec.ir_startino);
 
 		/*
@@ -1523,7 +1523,7 @@ xfs_difree_inobt(
 				  XFS_AGINO_TO_AGBNO(mp, rec.ir_startino)),
 				  mp->m_ialloc_blks, flist, mp);
 	} else {
-		*delete = 0;
+		*deleted = 0;
 
 		error = xfs_inobt_update(cur, &rec);
 		if (error) {
