@@ -2159,7 +2159,7 @@ static int intel_align_height(struct drm_device *dev, int height, bool tiled)
 int
 intel_pin_and_fence_fb_obj(struct drm_device *dev,
 			   struct drm_i915_gem_object *obj,
-			   struct intel_ring_buffer *pipelined)
+			   struct intel_engine_cs *pipelined)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 alignment;
@@ -8755,7 +8755,7 @@ out:
 }
 
 void intel_mark_fb_busy(struct drm_i915_gem_object *obj,
-			struct intel_ring_buffer *ring)
+			struct intel_engine_cs *ring)
 {
 	struct drm_device *dev = obj->base.dev;
 	struct drm_crtc *crtc;
@@ -8950,7 +8950,7 @@ static int intel_gen2_queue_flip(struct drm_device *dev,
 				 struct drm_crtc *crtc,
 				 struct drm_framebuffer *fb,
 				 struct drm_i915_gem_object *obj,
-				 struct intel_ring_buffer *ring,
+				 struct intel_engine_cs *ring,
 				 uint32_t flags)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
@@ -8985,7 +8985,7 @@ static int intel_gen3_queue_flip(struct drm_device *dev,
 				 struct drm_crtc *crtc,
 				 struct drm_framebuffer *fb,
 				 struct drm_i915_gem_object *obj,
-				 struct intel_ring_buffer *ring,
+				 struct intel_engine_cs *ring,
 				 uint32_t flags)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
@@ -9017,7 +9017,7 @@ static int intel_gen4_queue_flip(struct drm_device *dev,
 				 struct drm_crtc *crtc,
 				 struct drm_framebuffer *fb,
 				 struct drm_i915_gem_object *obj,
-				 struct intel_ring_buffer *ring,
+				 struct intel_engine_cs *ring,
 				 uint32_t flags)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -9056,7 +9056,7 @@ static int intel_gen6_queue_flip(struct drm_device *dev,
 				 struct drm_crtc *crtc,
 				 struct drm_framebuffer *fb,
 				 struct drm_i915_gem_object *obj,
-				 struct intel_ring_buffer *ring,
+				 struct intel_engine_cs *ring,
 				 uint32_t flags)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -9092,7 +9092,7 @@ static int intel_gen7_queue_flip(struct drm_device *dev,
 				 struct drm_crtc *crtc,
 				 struct drm_framebuffer *fb,
 				 struct drm_i915_gem_object *obj,
-				 struct intel_ring_buffer *ring,
+				 struct intel_engine_cs *ring,
 				 uint32_t flags)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
@@ -9187,7 +9187,7 @@ static int intel_default_queue_flip(struct drm_device *dev,
 				    struct drm_crtc *crtc,
 				    struct drm_framebuffer *fb,
 				    struct drm_i915_gem_object *obj,
-				    struct intel_ring_buffer *ring,
+				    struct intel_engine_cs *ring,
 				    uint32_t flags)
 {
 	return -ENODEV;
@@ -9204,7 +9204,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_i915_gem_object *obj = to_intel_framebuffer(fb)->obj;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_unpin_work *work;
-	struct intel_ring_buffer *ring;
+	struct intel_engine_cs *ring;
 	unsigned long flags;
 	int ret;
 

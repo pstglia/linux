@@ -207,7 +207,7 @@ static gen6_gtt_pte_t iris_pte_encode(dma_addr_t addr,
 }
 
 /* Broadwell Page Directory Pointer Descriptors */
-static int gen8_write_pdp(struct intel_ring_buffer *ring, unsigned entry,
+static int gen8_write_pdp(struct intel_engine_cs *ring, unsigned entry,
 			   uint64_t val, bool synchronous)
 {
 	struct drm_i915_private *dev_priv = ring->dev->dev_private;
@@ -237,7 +237,7 @@ static int gen8_write_pdp(struct intel_ring_buffer *ring, unsigned entry,
 }
 
 static int gen8_mm_switch(struct i915_hw_ppgtt *ppgtt,
-			  struct intel_ring_buffer *ring,
+			  struct intel_engine_cs *ring,
 			  bool synchronous)
 {
 	int i, ret;
@@ -716,7 +716,7 @@ static uint32_t get_pd_offset(struct i915_hw_ppgtt *ppgtt)
 }
 
 static int hsw_mm_switch(struct i915_hw_ppgtt *ppgtt,
-			 struct intel_ring_buffer *ring,
+			 struct intel_engine_cs *ring,
 			 bool synchronous)
 {
 	struct drm_device *dev = ppgtt->base.dev;
@@ -760,7 +760,7 @@ static int hsw_mm_switch(struct i915_hw_ppgtt *ppgtt,
 }
 
 static int gen7_mm_switch(struct i915_hw_ppgtt *ppgtt,
-			  struct intel_ring_buffer *ring,
+			  struct intel_engine_cs *ring,
 			  bool synchronous)
 {
 	struct drm_device *dev = ppgtt->base.dev;
@@ -811,7 +811,7 @@ static int gen7_mm_switch(struct i915_hw_ppgtt *ppgtt,
 }
 
 static int gen6_mm_switch(struct i915_hw_ppgtt *ppgtt,
-			  struct intel_ring_buffer *ring,
+			  struct intel_engine_cs *ring,
 			  bool synchronous)
 {
 	struct drm_device *dev = ppgtt->base.dev;
@@ -832,7 +832,7 @@ static int gen8_ppgtt_enable(struct i915_hw_ppgtt *ppgtt)
 {
 	struct drm_device *dev = ppgtt->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_ring_buffer *ring;
+	struct intel_engine_cs *ring;
 	int j, ret;
 
 	for_each_ring(ring, dev_priv, j) {
@@ -862,7 +862,7 @@ static int gen7_ppgtt_enable(struct i915_hw_ppgtt *ppgtt)
 {
 	struct drm_device *dev = ppgtt->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_ring_buffer *ring;
+	struct intel_engine_cs *ring;
 	uint32_t ecochk, ecobits;
 	int i;
 
@@ -901,7 +901,7 @@ static int gen6_ppgtt_enable(struct i915_hw_ppgtt *ppgtt)
 {
 	struct drm_device *dev = ppgtt->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_ring_buffer *ring;
+	struct intel_engine_cs *ring;
 	uint32_t ecochk, gab_ctl, ecobits;
 	int i;
 
@@ -1269,7 +1269,7 @@ static void undo_idling(struct drm_i915_private *dev_priv, bool interruptible)
 void i915_check_and_clear_faults(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_ring_buffer *ring;
+	struct intel_engine_cs *ring;
 	int i;
 
 	if (INTEL_INFO(dev)->gen < 6)
