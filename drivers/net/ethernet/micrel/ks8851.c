@@ -1509,7 +1509,9 @@ err_netdev:
 	free_irq(ndev->irq, ks);
 
 err_id:
-err_irq:
+	if (!IS_ERR(ks->vdd_reg))
+		regulator_disable(ks->vdd_reg);
+err_reg:
 	free_netdev(ndev);
 	return ret;
 }
@@ -1523,6 +1525,8 @@ static int ks8851_remove(struct spi_device *spi)
 
 	unregister_netdev(priv->netdev);
 	free_irq(spi->irq, priv);
+	if (!IS_ERR(priv->vdd_reg))
+		regulator_disable(priv->vdd_reg);
 	free_netdev(priv->netdev);
 
 	return 0;
