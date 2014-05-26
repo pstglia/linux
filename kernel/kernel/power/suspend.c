@@ -36,11 +36,11 @@ static void do_suspend_sync(struct work_struct *work);
 
 struct pm_sleep_state pm_states[PM_SUSPEND_MAX] = {
 #ifdef CONFIG_EARLYSUSPEND
-	[PM_SUSPEND_ON] = { "on", PM_SUSPEND_ON },
+	[PM_SUSPEND_ON] = { .label = "on", },
 #endif
-	[PM_SUSPEND_FREEZE] = { "freeze", PM_SUSPEND_FREEZE },
-	[PM_SUSPEND_STANDBY] = { "standby", PM_SUSPEND_STANDBY },
-	[PM_SUSPEND_MEM] = { "mem", PM_SUSPEND_MEM },
+	[PM_SUSPEND_FREEZE] = { .label = "freeze", .state = PM_SUSPEND_FREEZE },
+	[PM_SUSPEND_STANDBY] = { .label = "standby", },
+	[PM_SUSPEND_MEM] = { .label = "mem", },
 };
 
 static const struct platform_suspend_ops *suspend_ops;
