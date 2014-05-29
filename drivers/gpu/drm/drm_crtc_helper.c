@@ -93,8 +93,10 @@ bool drm_helper_encoder_in_use(struct drm_encoder *encoder)
 	 * We can expect this mutex to be locked if we are not panicking.
 	 * Locking is currently fubar in the panic handler.
 	 */
-	if (!oops_in_progress)
+	if (!oops_in_progress) {
 		WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
+		WARN_ON(!mutex_is_locked(&dev->mode_config.connection_mutex));
+	}
 
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
 		if (connector->encoder == encoder)
