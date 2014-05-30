@@ -1487,7 +1487,7 @@ static int trace_save_cmdline(struct task_struct *tsk)
 	return 1;
 }
 
-void trace_find_cmdline(int pid, char comm[])
+static void __trace_find_cmdline(int pid, char comm[])
 {
 	unsigned map;
 
@@ -1506,13 +1506,19 @@ void trace_find_cmdline(int pid, char comm[])
 		return;
 	}
 
-	preempt_disable();
-	arch_spin_lock(&trace_cmdline_lock);
 	map = map_pid_to_cmdline[pid];
 	if (map != NO_CMDLINE_MAP)
 		strcpy(comm, saved_cmdlines[map]);
 	else
 		strcpy(comm, "<...>");
+}
+
+void trace_find_cmdline(int pid, char comm[])
+{
+	preempt_disable();
+	arch_spin_lock(&trace_cmdline_lock);
+
+	__trace_find_cmdline(pid, comm);
 
 	arch_spin_unlock(&trace_cmdline_lock);
 	preempt_enable();
@@ -3771,6 +3777,9 @@ static void *saved_cmdlines_start(struct seq_file *m, loff_t *pos)
 	void *v;
 	loff_t l = 0;
 
+	preempt_disable();
+	arch_spin_lock(&trace_cmdline_lock);
+
 	v = &map_cmdline_to_pid[0];
 	while (l <= *pos) {
 		v = saved_cmdlines_next(m, v, &l);
@@ -3783,6 +3792,8 @@ static void *saved_cmdlines_start(struct seq_file *m, loff_t *pos)
 
 static void saved_cmdlines_stop(struct seq_file *m, void *v)
 {
+	arch_spin_unlock(&trace_cmdline_lock);
+	preempt_enable();
 }
 
 static int saved_cmdlines_show(struct seq_file *m, void *v)
@@ -3790,7 +3801,7 @@ static int saved_cmdlines_show(struct seq_file *m, void *v)
 	char buf[TASK_COMM_LEN];
 	unsigned int *pid = v;
 
-	trace_find_cmdline(*pid, buf);
+	__trace_find_cmdline(*pid, buf);
 	seq_printf(m, "%d %s\n", *pid, buf);
 	return 0;
 }
