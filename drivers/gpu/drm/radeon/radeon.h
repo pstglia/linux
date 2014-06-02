@@ -1929,6 +1929,7 @@ struct r600_asic {
 	unsigned		tiling_group_size;
 	unsigned		tile_config;
 	unsigned		backend_map;
+	unsigned		active_simds;
 };
 
 struct rv770_asic {
@@ -1954,6 +1955,7 @@ struct rv770_asic {
 	unsigned		tiling_group_size;
 	unsigned		tile_config;
 	unsigned		backend_map;
+	unsigned		active_simds;
 };
 
 struct evergreen_asic {
@@ -1980,6 +1982,7 @@ struct evergreen_asic {
 	unsigned tiling_group_size;
 	unsigned tile_config;
 	unsigned backend_map;
+	unsigned active_simds;
 };
 
 struct cayman_asic {
@@ -2018,6 +2021,7 @@ struct cayman_asic {
 	unsigned multi_gpu_tile_size;
 
 	unsigned tile_config;
+	unsigned active_simds;
 };
 
 struct si_asic {
@@ -2048,6 +2052,7 @@ struct si_asic {
 
 	unsigned tile_config;
 	uint32_t tile_mode_array[32];
+	uint32_t active_cus;
 };
 
 struct cik_asic {
@@ -2079,6 +2084,7 @@ struct cik_asic {
 	unsigned tile_config;
 	uint32_t tile_mode_array[32];
 	uint32_t macrotile_mode_array[16];
+	uint32_t active_cus;
 };
 
 union radeon_asic_config {
