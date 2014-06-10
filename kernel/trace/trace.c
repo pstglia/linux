@@ -1339,7 +1339,7 @@ static int trace_create_savedcmd(void)
 {
 	int ret;
 
-	savedcmd = kmalloc(sizeof(struct saved_cmdlines_buffer), GFP_KERNEL);
+	savedcmd = kmalloc(sizeof(*savedcmd), GFP_KERNEL);
 	if (!savedcmd)
 		return -ENOMEM;
 
@@ -3928,7 +3928,7 @@ tracing_saved_cmdlines_size_read(struct file *filp, char __user *ubuf,
 	int r;
 
 	arch_spin_lock(&trace_cmdline_lock);
-	r = sprintf(buf, "%u\n", savedcmd->cmdline_num);
+	r = scnprintf(buf, sizeof(buf), "%u\n", savedcmd->cmdline_num);
 	arch_spin_unlock(&trace_cmdline_lock);
 
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
@@ -3945,7 +3945,7 @@ static int tracing_resize_saved_cmdlines(unsigned int val)
 {
 	struct saved_cmdlines_buffer *s, *savedcmd_temp;
 
-	s = kmalloc(sizeof(struct saved_cmdlines_buffer), GFP_KERNEL);
+	s = kmalloc(sizeof(*s), GFP_KERNEL);
 	if (!s)
 		return -ENOMEM;
 
