@@ -4563,7 +4563,10 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 	if (intel_crtc->active)
 		return;
 
-	vlv_prepare_pll(intel_crtc);
+	is_dsi = intel_pipe_has_type(crtc, INTEL_OUTPUT_DSI);
+
+	if (!is_dsi && !IS_CHERRYVIEW(dev))
+		vlv_prepare_pll(intel_crtc);
 
 	/* Set up the display plane register */
 	dspcntr = DISPPLANE_GAMMA_ENABLE;
@@ -4596,8 +4599,6 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 	for_each_encoder_on_crtc(dev, crtc, encoder)
 		if (encoder->pre_pll_enable)
 			encoder->pre_pll_enable(encoder);
-
-	is_dsi = intel_pipe_has_type(crtc, INTEL_OUTPUT_DSI);
 
 	if (!is_dsi) {
 		if (IS_CHERRYVIEW(dev))
