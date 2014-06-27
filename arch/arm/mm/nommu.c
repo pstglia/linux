@@ -294,6 +294,7 @@ void __init sanity_check_meminfo(void)
 	sanity_check_meminfo_mpu();
 	end = bank_phys_end(&meminfo.bank[meminfo.nr_banks - 1]);
 	high_memory = __va(end - 1) + 1;
+	memblock_set_current_limit(end);
 }
 
 /*
