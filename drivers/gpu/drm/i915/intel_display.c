@@ -11913,6 +11913,7 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc)
 		 * ...  */
 		plane = crtc->plane;
 		crtc->plane = !plane;
+		crtc->primary_enabled = true;
 		dev_priv->display.crtc_disable(&crtc->base);
 		crtc->plane = plane;
 
