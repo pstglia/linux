@@ -885,9 +885,12 @@ static struct binder_node *binder_new_node(struct binder_proc *proc,
 					   binder_uintptr_t ptr,
 					   binder_uintptr_t cookie)
 {
+  
+	
 	struct rb_node **p = &proc->nodes.rb_node;
 	struct rb_node *parent = NULL;
 	struct binder_node *node;
+	
 
 	while (*p) {
 		parent = *p;
@@ -898,12 +901,21 @@ static struct binder_node *binder_new_node(struct binder_proc *proc,
 		else if (ptr > node->ptr)
 			p = &(*p)->rb_right;
 		else
+		{
+			printk(KERN_ALERT "PST DEBUG - saindo no else do while (ptr == node->ptr ) %s %d \n",__FUNCTION__,__LINE__);
 			return NULL;
+		}
 	}
+	
 
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
 	if (node == NULL)
+	{
+		printk(KERN_ALERT "PST DEBUG - saindo ao detectar node == NULL apos a kzalloc %s %d \n",__FUNCTION__,__LINE__);
 		return NULL;
+	}
+	
+	
 	binder_stats_created(BINDER_STAT_NODE);
 	rb_link_node(&node->rb_node, parent, p);
 	rb_insert_color(&node->rb_node, &proc->nodes);
@@ -918,6 +930,12 @@ static struct binder_node *binder_new_node(struct binder_proc *proc,
 		     "%d:%d node %d u%016llx c%016llx created\n",
 		     proc->pid, current->pid, node->debug_id,
 		     (u64)node->ptr, (u64)node->cookie);
+	
+	if (node == NULL)
+	{
+		printk(KERN_ALERT "PST DEBUG - node == NULL no fim da funcao binder_new_node %s %d \n",__FUNCTION__,__LINE__);
+	}
+	
 	return node;
 }
 
@@ -1341,6 +1359,7 @@ static void binder_transaction(struct binder_proc *proc,
 			binder_user_error("%d:%d got reply transaction with no transaction stack\n",
 					  proc->pid, thread->pid);
 			return_error = BR_FAILED_REPLY;
+			printk(KERN_ALERT "PST DEBUG - Falha de in_reply_to = thread->transaction_stack - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 			goto err_empty_call_stack;
 		}
 		binder_set_nice(in_reply_to->saved_priority);
@@ -1353,12 +1372,14 @@ static void binder_transaction(struct binder_proc *proc,
 				in_reply_to->to_thread->pid : 0);
 			return_error = BR_FAILED_REPLY;
 			in_reply_to = NULL;
+			printk(KERN_ALERT "PST DEBUG - Falha de binder_set_nice(in_reply_to->saved_priority) - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 			goto err_bad_call_stack;
 		}
 		thread->transaction_stack = in_reply_to->to_parent;
 		target_thread = in_reply_to->from;
 		if (target_thread == NULL) {
 			return_error = BR_DEAD_REPLY;
+			printk(KERN_ALERT "PST DEBUG - Falha de target_thread = in_reply_to->from - BR_DEAD_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 			goto err_dead_binder;
 		}
 		if (target_thread->transaction_stack != in_reply_to) {
@@ -1370,6 +1391,7 @@ static void binder_transaction(struct binder_proc *proc,
 			return_error = BR_FAILED_REPLY;
 			in_reply_to = NULL;
 			target_thread = NULL;
+			printk(KERN_ALERT "PST DEBUG - Falha de target_thread->transaction_stack != in_reply_to - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 			goto err_dead_binder;
 		}
 		target_proc = target_thread->proc;
@@ -1382,6 +1404,7 @@ static void binder_transaction(struct binder_proc *proc,
 				binder_user_error("%d:%d got transaction to invalid handle\n",
 					proc->pid, thread->pid);
 				return_error = BR_FAILED_REPLY;
+				printk(KERN_ALERT "PST DEBUG - Falha de ref = binder_get_ref(proc, tr->target.handle) - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 				goto err_invalid_target_handle;
 			}
 			target_node = ref->node;
@@ -1389,6 +1412,7 @@ static void binder_transaction(struct binder_proc *proc,
 			target_node = binder_context_mgr_node;
 			if (target_node == NULL) {
 				return_error = BR_DEAD_REPLY;
+				printk(KERN_ALERT "PST DEBUG - Falha de target_node = binder_context_mgr_node - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 				goto err_no_context_mgr_node;
 			}
 		}
@@ -1396,6 +1420,7 @@ static void binder_transaction(struct binder_proc *proc,
 		target_proc = target_node->proc;
 		if (target_proc == NULL) {
 			return_error = BR_DEAD_REPLY;
+			printk(KERN_ALERT "PST DEBUG - Falha de target_proc = target_node->proc - BR_DEAD_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 			goto err_dead_binder;
 		}
 		if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
@@ -1409,6 +1434,7 @@ static void binder_transaction(struct binder_proc *proc,
 					tmp->to_thread ?
 					tmp->to_thread->pid : 0);
 				return_error = BR_FAILED_REPLY;
+				printk(KERN_ALERT "PST DEBUG - Falha de err_alloc_t_failed - thread->transaction_stack - BR_FAILED_REPLY    %s %d \n",__FUNCTION__,__LINE__);
 				goto err_bad_call_stack;
 			}
 			while (tmp) {
@@ -1432,6 +1458,7 @@ static void binder_transaction(struct binder_proc *proc,
 	t = kzalloc(sizeof(*t), GFP_KERNEL);
 	if (t == NULL) {
 		return_error = BR_FAILED_REPLY;
+		printk(KERN_ALERT "PST DEBUG - Falha de err_alloc_t_failed - kzalloc(sizeof(*t), GFP_KERNEL)    %s %d \n",__FUNCTION__,__LINE__);
 		goto err_alloc_t_failed;
 	}
 	binder_stats_created(BINDER_STAT_TRANSACTION);
@@ -1912,6 +1939,12 @@ static int binder_thread_write(struct binder_proc *proc,
 			if (copy_from_user(&tr, ptr, sizeof(tr)))
 				return -EFAULT;
 			ptr += sizeof(tr);
+			
+		  	if (binder_context_mgr_node == NULL)
+			{
+				printk(KERN_ALERT "PST DEBUG - Valor de binder_context_mgr_node esta nulo %s %d \n",__FUNCTION__,__LINE__);
+			}
+			
 			binder_transaction(proc, thread, &tr, cmd == BC_REPLY);
 			break;
 		}
@@ -2637,6 +2670,11 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			     (u64)bwr.read_size, (u64)bwr.read_buffer);
 
 		if (bwr.write_size > 0) {
+		  	if (binder_context_mgr_node == NULL)
+			{
+				printk(KERN_ALERT "PST DEBUG - Valor de binder_context_mgr_node esta nulo %s %d \n",__FUNCTION__,__LINE__);
+			}
+
 			ret = binder_thread_write(proc, thread,
 						  bwr.write_buffer,
 						  bwr.write_size,

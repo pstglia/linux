@@ -135,6 +135,26 @@ int __init register_security(struct security_operations *ops)
 
 /* Security operations */
 
+int security_binder_set_context_mgr(struct task_struct *mgr)
+{
+      return security_ops->binder_set_context_mgr(mgr);
+}
+
+int security_binder_transaction(struct task_struct *from, struct task_struct *to)
+{
+      return security_ops->binder_transaction(from, to);
+}
+
+int security_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
+{
+      return security_ops->binder_transfer_binder(from, to);
+}
+
+int security_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
+{
+      return security_ops->binder_transfer_file(from, to, file);
+}
+
 int security_ptrace_access_check(struct task_struct *child, unsigned int mode)
 {
 #ifdef CONFIG_SECURITY_YAMA_STACKED
@@ -1335,11 +1355,9 @@ void security_skb_owned_by(struct sk_buff *skb, struct sock *sk)
 
 #ifdef CONFIG_SECURITY_NETWORK_XFRM
 
-int security_xfrm_policy_alloc(struct xfrm_sec_ctx **ctxp,
-			       struct xfrm_user_sec_ctx *sec_ctx,
-			       gfp_t gfp)
+int security_xfrm_policy_alloc(struct xfrm_sec_ctx **ctxp, struct xfrm_user_sec_ctx *sec_ctx)
 {
-	return security_ops->xfrm_policy_alloc_security(ctxp, sec_ctx, gfp);
+	return security_ops->xfrm_policy_alloc_security(ctxp, sec_ctx);
 }
 EXPORT_SYMBOL(security_xfrm_policy_alloc);
 

@@ -549,8 +549,8 @@ static void gs_rx_push(unsigned long _port)
 		port->read_started--;
 	}
 
-	/* Push from tty to ldisc; this is handled by a workqueue,
-	 * so we won't get callbacks and can hold port_lock
+	/* Push from tty to ldisc; without low_latency set this is handled by
+	 * a workqueue, so we won't get callbacks and can hold port_lock
 	 */
 	if (do_push)
 		tty_flip_buffer_push(&port->port);
@@ -1126,6 +1126,7 @@ int gserial_alloc_line(unsigned char *line_num)
 
 	tty_dev = tty_port_register_device(&ports[port_num].port->port,
 			gs_tty_driver, port_num, NULL);
+
 	if (IS_ERR(tty_dev)) {
 		struct gs_port	*port;
 		pr_err("%s: failed to register tty for port %d, err %ld\n",

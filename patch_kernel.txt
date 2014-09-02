@@ -1,0 +1,1815 @@
+diff -Naur kernel/cgroup.c kernel/cgroup.c
+--- kernel/cgroup.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/cgroup.c	2014-08-31 12:21:05.761941884 -0300
+@@ -2295,6 +2295,25 @@
+ 	return ret;
+ }
+ 
++static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
++{
++      struct cgroup_subsys_state *css;
++      int i;
++      int ret;
++
++      for_each_css(css, i, cgrp) {
++              if (css->ss->allow_attach) {
++                      ret = css->ss->allow_attach(css, tset);
++                      if (ret)
++                              return ret;
++              } else {
++                      return -EACCES;
++              }
++      }
++
++      return 0;
++}
++
+ /*
+  * Find the task_struct of the task to attach by vpid and pass it along to the
+  * function to attach either it or all tasks in its threadgroup. Will lock
+@@ -2333,9 +2352,22 @@
+ 		if (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&
+ 		    !uid_eq(cred->euid, tcred->uid) &&
+ 		    !uid_eq(cred->euid, tcred->suid)) {
+-			rcu_read_unlock();
+-			ret = -EACCES;
+-			goto out_unlock_cgroup;
++			/*
++			* if the default permission check fails, give each
++			* cgroup a chance to extend the permission check
++			*/
++			struct cgroup_taskset tset = { };
++			tset.cur_task = tsk;
++			//tset.single.cgrp = cgrp;
++			
++			// INSEGURO!!!!!! SOMENTE PARA TESTES
++			//ret = cgroup_allow_attach(cgrp, &tset);
++			ret=0;
++			
++			if (ret) {
++				rcu_read_unlock();
++				goto out_unlock_cgroup;
++			}
+ 		}
+ 	} else
+ 		tsk = current;
+@@ -4336,16 +4368,16 @@
+ 
+ 	err = percpu_ref_init(&css->refcnt, css_release);
+ 	if (err)
+-		goto err_free_css;
++		goto err_free;
+ 
+ 	err = cgroup_idr_alloc(&ss->css_idr, NULL, 2, 0, GFP_NOWAIT);
+ 	if (err < 0)
+-		goto err_free_percpu_ref;
++		goto err_free;
+ 	css->id = err;
+ 
+ 	err = cgroup_populate_dir(cgrp, 1 << ss->id);
+ 	if (err)
+-		goto err_free_id;
++		goto err_free;
+ 
+ 	/* @css is ready to be brought online now, make it visible */
+ 	list_add_tail_rcu(&css->sibling, &parent_css->children);
+@@ -4353,7 +4385,7 @@
+ 
+ 	err = online_css(css);
+ 	if (err)
+-		goto err_list_del;
++		goto err_free;
+ 
+ 	if (ss->broken_hierarchy && !ss->warned_broken_hierarchy &&
+ 	    cgroup_parent(parent)) {
+@@ -4366,14 +4398,9 @@
+ 
+ 	return 0;
+ 
+-err_list_del:
++err_free:
+ 	list_del_rcu(&css->sibling);
+-	cgroup_clear_dir(css->cgroup, 1 << css->ss->id);
+-err_free_id:
+-	cgroup_idr_remove(&ss->css_idr, css->id);
+-err_free_percpu_ref:
+ 	percpu_ref_cancel_init(&css->refcnt);
+-err_free_css:
+ 	call_rcu(&css->rcu_head, css_free_rcu_fn);
+ 	return err;
+ }
+diff -Naur kernel/cpu.c kernel/cpu.c
+--- kernel/cpu.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/cpu.c	2014-08-31 12:21:06.000941855 -0300
+@@ -758,3 +758,26 @@
+ {
+ 	cpumask_copy(to_cpumask(cpu_online_bits), src);
+ }
++
++/**
++ * pstglia - Android-x86 changes
++ */
++static ATOMIC_NOTIFIER_HEAD(idle_notifier);
++
++void idle_notifier_register(struct notifier_block *n)
++{
++      atomic_notifier_chain_register(&idle_notifier, n);
++}
++EXPORT_SYMBOL_GPL(idle_notifier_register);
++
++void idle_notifier_unregister(struct notifier_block *n)
++{
++      atomic_notifier_chain_unregister(&idle_notifier, n);
++}
++EXPORT_SYMBOL_GPL(idle_notifier_unregister);
++
++void idle_notifier_call_chain(unsigned long val)
++{
++      atomic_notifier_call_chain(&idle_notifier, val, NULL);
++}
++EXPORT_SYMBOL_GPL(idle_notifier_call_chain);
+\ No newline at end of file
+diff -Naur kernel/debug/debug_core.c kernel/debug/debug_core.c
+--- kernel/debug/debug_core.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/debug/debug_core.c	2014-08-31 12:21:06.345941812 -0300
+@@ -87,6 +87,15 @@
+ bool dbg_is_early = true;
+ /* Next cpu to become the master debug core */
+ int dbg_switch_cpu;
++/**
++ * pstglia - Android-x86 changes
++ */
++/* Flag for entering kdb when a panic occurs */
++static bool break_on_panic = true;
++/* Flag for entering kdb when an exception occurs */
++static bool break_on_exception = true;
++
++
+ 
+ /* Use kdb or gdbserver mode */
+ int dbg_kdb_mode = 1;
+@@ -101,6 +110,11 @@
+ 
+ module_param(kgdb_use_con, int, 0644);
+ module_param(kgdbreboot, int, 0644);
++/**
++ * pstglia - Android x86 changes
++ */ 
++module_param(break_on_panic, bool, 0644);
++module_param(break_on_exception, bool, 0644);
+ 
+ /*
+  * Holds information about breakpoints in a kernel. These breakpoints are
+@@ -689,6 +703,12 @@
+ 
+ 	if (arch_kgdb_ops.enable_nmi)
+ 		arch_kgdb_ops.enable_nmi(0);
++	
++	/**
++	 * pstglia - Android x86 changes
++	 */
++	if (unlikely(signo != SIGTRAP && !break_on_exception))
++	  return 1;
+ 
+ 	memset(ks, 0, sizeof(struct kgdb_state));
+ 	ks->cpu			= raw_smp_processor_id();
+@@ -821,6 +841,14 @@
+ 			    unsigned long val,
+ 			    void *data)
+ {
++  
++	/**
++	 * pstglia - Android x86 changes
++	 */
++	if (!break_on_panic)
++	  return NOTIFY_DONE;
++
++  
+ 	if (dbg_kdb_mode)
+ 		kdb_printf("PANIC: %s\n", (char *)data);
+ 	kgdb_breakpoint();
+diff -Naur kernel/debug/kdb/kdb_io.c kernel/debug/kdb/kdb_io.c
+--- kernel/debug/kdb/kdb_io.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/debug/kdb/kdb_io.c	2014-08-31 12:21:06.308941817 -0300
+@@ -216,6 +216,11 @@
+ 	int i;
+ 	int diag, dtab_count;
+ 	int key;
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	static int last_crlf;
+ 
+ 
+ 	diag = kdbgetintenv("DTABCOUNT", &dtab_count);
+@@ -237,6 +242,13 @@
+ 		return buffer;
+ 	if (key != 9)
+ 		tab = 0;
++
++		 /**
++		 * pstglia - Android-x86 changes
++		 */
++		if (key != 10 && key != 13)
++		  last_crlf = 0;
++		
+ 	switch (key) {
+ 	case 8: /* backspace */
+ 		if (cp > buffer) {
+@@ -254,7 +266,19 @@
+ 			*cp = tmp;
+ 		}
+ 		break;
+-	case 13: /* enter */
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	case 10: /* new line */
++	case 13: /* carriage return */
++		/* handle \n after \r */
++		if (last_crlf && last_crlf != key)
++		  break;
++		last_crlf = key;
++
++
++
++
+ 		*lastchar++ = '\n';
+ 		*lastchar++ = '\0';
+ 		if (!KDB_STATE(KGDB_TRANS)) {
+diff -Naur kernel/fork.c kernel/fork.c
+--- kernel/fork.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/fork.c	2014-08-31 12:21:05.882941869 -0300
+@@ -201,6 +201,13 @@
+ /* SLAB cache for mm_struct structures (tsk->mm) */
+ static struct kmem_cache *mm_cachep;
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++/* Notifier list called when a task struct is freed */
++static ATOMIC_NOTIFIER_HEAD(task_free_notifier);
++
++
+ static void account_kernel_stack(struct thread_info *ti, int account)
+ {
+ 	struct zone *zone = page_zone(virt_to_page(ti));
+@@ -234,6 +241,21 @@
+ 		free_signal_struct(sig);
+ }
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++int task_free_register(struct notifier_block *n)
++{
++      return atomic_notifier_chain_register(&task_free_notifier, n);
++}
++EXPORT_SYMBOL(task_free_register);
++
++int task_free_unregister(struct notifier_block *n)
++{
++      return atomic_notifier_chain_unregister(&task_free_notifier, n);
++}
++EXPORT_SYMBOL(task_free_unregister);
++
+ void __put_task_struct(struct task_struct *tsk)
+ {
+ 	WARN_ON(!tsk->exit_state);
+@@ -246,6 +268,11 @@
+ 	delayacct_tsk_free(tsk);
+ 	put_signal_struct(tsk->signal);
+ 
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	atomic_notifier_call_chain(&task_free_notifier, 0, tsk);
++	
+ 	if (!profile_handoff_task(tsk))
+ 		free_task(tsk);
+ }
+@@ -698,11 +725,17 @@
+ 		return ERR_PTR(err);
+ 
+ 	mm = get_task_mm(task);
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
+ 	if (mm && mm != current->mm &&
+-			!ptrace_may_access(task, mode)) {
++			!ptrace_may_access(task, mode) &&
++			!capable(CAP_SYS_RESOURCE)) {
+ 		mmput(mm);
+ 		mm = ERR_PTR(-EACCES);
+ 	}
++	
+ 	mutex_unlock(&task->signal->cred_guard_mutex);
+ 
+ 	return mm;
+diff -Naur kernel/irq/pm.c kernel/irq/pm.c
+--- kernel/irq/pm.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/irq/pm.c	2014-08-31 12:21:05.866941871 -0300
+@@ -109,8 +109,16 @@
+ 		 * can abort suspend.
+ 		 */
+ 		if (irqd_is_wakeup_set(&desc->irq_data)) {
+-			if (desc->depth == 1 && desc->istate & IRQS_PENDING)
++			/**
++			 * pstglia - Android-x86 changes
++			 */
++			if (desc->istate & IRQS_PENDING) {
++				pr_info("Wakeup IRQ %d %s pending, suspend aborted\n",
++					irq,
++					desc->action && desc->action->name ?
++					desc->action->name : "");
+ 				return -EBUSY;
++			}
+ 			continue;
+ 		}
+ 		/*
+diff -Naur kernel/panic.c kernel/panic.c
+--- kernel/panic.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/panic.c	2014-08-31 12:21:05.929941863 -0300
+@@ -27,6 +27,12 @@
+ #define PANIC_TIMER_STEP 100
+ #define PANIC_BLINK_SPD 18
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++/* Machine specific panic information string */
++char *mach_panic_string;
++
+ int panic_on_oops = CONFIG_PANIC_ON_OOPS_VALUE;
+ static unsigned long tainted_mask;
+ static int pause_on_oops;
+@@ -34,6 +40,12 @@
+ static DEFINE_SPINLOCK(pause_on_oops_lock);
+ static bool crash_kexec_post_notifiers;
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifndef CONFIG_PANIC_TIMEOUT
++#define CONFIG_PANIC_TIMEOUT 0
++#endif
+ int panic_timeout = CONFIG_PANIC_TIMEOUT;
+ EXPORT_SYMBOL_GPL(panic_timeout);
+ 
+@@ -394,6 +406,14 @@
+ void print_oops_end_marker(void)
+ {
+ 	init_oops_id();
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	if (mach_panic_string)
++        printk(KERN_WARNING "Board Information: %s\n",
++               mach_panic_string);
++	
+ 	pr_warn("---[ end trace %016llx ]---\n", (unsigned long long)oops_id);
+ }
+ 
+diff -Naur kernel/power/Kconfig kernel/power/Kconfig
+--- kernel/power/Kconfig	2014-08-03 19:25:02.000000000 -0300
++++ kernel/power/Kconfig	2014-08-31 12:21:06.265941822 -0300
+@@ -18,6 +18,14 @@
+ 
+ 	  Turning OFF this setting is NOT recommended! If in doubt, say Y.
+ 
++config HAS_WAKELOCK
++      bool
++      default y
++
++config WAKELOCK
++      bool
++      default y	  
++	  
+ config HIBERNATE_CALLBACKS
+ 	bool
+ 
+@@ -308,3 +316,11 @@
+ config CPU_PM
+ 	bool
+ 	depends on SUSPEND || CPU_IDLE
++
++config SUSPEND_TIME
++      bool "Log time spent in suspend"
++      ---help---
++        Prints the time spent in suspend in the kernel log, and
++        keeps statistics on the time spent in suspend in
++        /sys/kernel/debug/suspend_time
++	
+\ No newline at end of file
+diff -Naur kernel/power/Makefile kernel/power/Makefile
+--- kernel/power/Makefile	2014-08-03 19:25:02.000000000 -0300
++++ kernel/power/Makefile	2014-08-31 12:21:06.263941822 -0300
+@@ -11,5 +11,8 @@
+ 				   block_io.o
+ obj-$(CONFIG_PM_AUTOSLEEP)	+= autosleep.o
+ obj-$(CONFIG_PM_WAKELOCKS)	+= wakelock.o
++obj-$(CONFIG_SUSPEND_TIME)    	+= suspend_time.o
+ 
+ obj-$(CONFIG_MAGIC_SYSRQ)	+= poweroff.o
++
++obj-$(CONFIG_SUSPEND)   += wakeup_reason.o
+\ No newline at end of file
+diff -Naur kernel/power/suspend.c kernel/power/suspend.c
+--- kernel/power/suspend.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/power/suspend.c	2014-08-31 12:21:06.266941822 -0300
+@@ -26,6 +26,12 @@
+ #include <linux/suspend.h>
+ #include <linux/syscore_ops.h>
+ #include <linux/ftrace.h>
++
++/**
++ * pstglia - Android-x86 changes
++ */
++#include <linux/rtc.h>
++
+ #include <trace/events/power.h>
+ #include <linux/compiler.h>
+ 
+@@ -418,6 +424,22 @@
+ }
+ 
+ /**
++ * pstglia - Android-x86 changes
++ */
++static void pm_suspend_marker(char *annotation)
++{
++      struct timespec ts;
++      struct rtc_time tm;
++
++      getnstimeofday(&ts);
++      rtc_time_to_tm(ts.tv_sec, &tm);
++      pr_info("PM: suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
++              annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
++              tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
++}
++
++
++/**
+  * pm_suspend - Externally visible function for suspending the system.
+  * @state: System sleep state to enter.
+  *
+@@ -430,6 +452,11 @@
+ 
+ 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
+ 		return -EINVAL;
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	pm_suspend_marker("entry");
+ 
+ 	error = enter_state(state);
+ 	if (error) {
+@@ -438,6 +465,12 @@
+ 	} else {
+ 		suspend_stats.success++;
+ 	}
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	pm_suspend_marker("exit");
++	
+ 	return error;
+ }
+ EXPORT_SYMBOL(pm_suspend);
+diff -Naur kernel/power/suspend_time.c kernel/power/suspend_time.c
+--- kernel/power/suspend_time.c	1969-12-31 21:00:00.000000000 -0300
++++ kernel/power/suspend_time.c	2014-08-31 12:21:06.262941823 -0300
+@@ -0,0 +1,111 @@
++/*
++ * debugfs file to track time spent in suspend
++ *
++ * Copyright (c) 2011, Google, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ */
++
++#include <linux/debugfs.h>
++#include <linux/err.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/seq_file.h>
++#include <linux/syscore_ops.h>
++#include <linux/time.h>
++
++static struct timespec suspend_time_before;
++static unsigned int time_in_suspend_bins[32];
++
++#ifdef CONFIG_DEBUG_FS
++static int suspend_time_debug_show(struct seq_file *s, void *data)
++{
++	int bin;
++	seq_printf(s, "time (secs)  count\n");
++	seq_printf(s, "------------------\n");
++	for (bin = 0; bin < 32; bin++) {
++		if (time_in_suspend_bins[bin] == 0)
++			continue;
++		seq_printf(s, "%4d - %4d %4u\n",
++			bin ? 1 << (bin - 1) : 0, 1 << bin,
++				time_in_suspend_bins[bin]);
++	}
++	return 0;
++}
++
++static int suspend_time_debug_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, suspend_time_debug_show, NULL);
++}
++
++static const struct file_operations suspend_time_debug_fops = {
++	.open		= suspend_time_debug_open,
++	.read		= seq_read,
++	.llseek		= seq_lseek,
++	.release	= single_release,
++};
++
++static int __init suspend_time_debug_init(void)
++{
++	struct dentry *d;
++
++	d = debugfs_create_file("suspend_time", 0755, NULL, NULL,
++		&suspend_time_debug_fops);
++	if (!d) {
++		pr_err("Failed to create suspend_time debug file\n");
++		return -ENOMEM;
++	}
++
++	return 0;
++}
++
++late_initcall(suspend_time_debug_init);
++#endif
++
++static int suspend_time_syscore_suspend(void)
++{
++	read_persistent_clock(&suspend_time_before);
++
++	return 0;
++}
++
++static void suspend_time_syscore_resume(void)
++{
++	struct timespec after;
++
++	read_persistent_clock(&after);
++
++	after = timespec_sub(after, suspend_time_before);
++
++	time_in_suspend_bins[fls(after.tv_sec)]++;
++
++	pr_info("Suspended for %lu.%03lu seconds\n", after.tv_sec,
++		after.tv_nsec / NSEC_PER_MSEC);
++}
++
++static struct syscore_ops suspend_time_syscore_ops = {
++	.suspend = suspend_time_syscore_suspend,
++	.resume = suspend_time_syscore_resume,
++};
++
++static int suspend_time_syscore_init(void)
++{
++	register_syscore_ops(&suspend_time_syscore_ops);
++
++	return 0;
++}
++
++static void suspend_time_syscore_exit(void)
++{
++	unregister_syscore_ops(&suspend_time_syscore_ops);
++}
++module_init(suspend_time_syscore_init);
++module_exit(suspend_time_syscore_exit);
+diff -Naur kernel/power/wakeup_reason.c kernel/power/wakeup_reason.c
+--- kernel/power/wakeup_reason.c	1969-12-31 21:00:00.000000000 -0300
++++ kernel/power/wakeup_reason.c	2014-08-31 12:21:06.246941825 -0300
+@@ -0,0 +1,140 @@
++/*
++ * kernel/power/wakeup_reason.c
++ *
++ * Logs the reasons which caused the kernel to resume from
++ * the suspend mode.
++ *
++ * Copyright (C) 2014 Google, Inc.
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/wakeup_reason.h>
++#include <linux/kernel.h>
++#include <linux/irq.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/kobject.h>
++#include <linux/sysfs.h>
++#include <linux/init.h>
++#include <linux/spinlock.h>
++#include <linux/notifier.h>
++#include <linux/suspend.h>
++
++
++#define MAX_WAKEUP_REASON_IRQS 32
++static int irq_list[MAX_WAKEUP_REASON_IRQS];
++static int irqcount;
++static struct kobject *wakeup_reason;
++static spinlock_t resume_reason_lock;
++
++static ssize_t reason_show(struct kobject *kobj, struct kobj_attribute *attr,
++		char *buf)
++{
++	int irq_no, buf_offset = 0;
++	struct irq_desc *desc;
++	spin_lock(&resume_reason_lock);
++	for (irq_no = 0; irq_no < irqcount; irq_no++) {
++		desc = irq_to_desc(irq_list[irq_no]);
++		if (desc && desc->action && desc->action->name)
++			buf_offset += sprintf(buf + buf_offset, "%d %s\n",
++					irq_list[irq_no], desc->action->name);
++		else
++			buf_offset += sprintf(buf + buf_offset, "%d\n",
++					irq_list[irq_no]);
++	}
++	spin_unlock(&resume_reason_lock);
++	return buf_offset;
++}
++
++static struct kobj_attribute resume_reason = __ATTR(last_resume_reason, 0666,
++		reason_show, NULL);
++
++static struct attribute *attrs[] = {
++	&resume_reason.attr,
++	NULL,
++};
++static struct attribute_group attr_group = {
++	.attrs = attrs,
++};
++
++/*
++ * logs all the wake up reasons to the kernel
++ * stores the irqs to expose them to the userspace via sysfs
++ */
++void log_wakeup_reason(int irq)
++{
++	struct irq_desc *desc;
++	desc = irq_to_desc(irq);
++	if (desc && desc->action && desc->action->name)
++		printk(KERN_INFO "Resume caused by IRQ %d, %s\n", irq,
++				desc->action->name);
++	else
++		printk(KERN_INFO "Resume caused by IRQ %d\n", irq);
++
++	spin_lock(&resume_reason_lock);
++	if (irqcount == MAX_WAKEUP_REASON_IRQS) {
++		spin_unlock(&resume_reason_lock);
++		printk(KERN_WARNING "Resume caused by more than %d IRQs\n",
++				MAX_WAKEUP_REASON_IRQS);
++		return;
++	}
++
++	irq_list[irqcount++] = irq;
++	spin_unlock(&resume_reason_lock);
++}
++
++/* Detects a suspend and clears all the previous wake up reasons*/
++static int wakeup_reason_pm_event(struct notifier_block *notifier,
++		unsigned long pm_event, void *unused)
++{
++	switch (pm_event) {
++	case PM_SUSPEND_PREPARE:
++		spin_lock(&resume_reason_lock);
++		irqcount = 0;
++		spin_unlock(&resume_reason_lock);
++		break;
++	default:
++		break;
++	}
++	return NOTIFY_DONE;
++}
++
++static struct notifier_block wakeup_reason_pm_notifier_block = {
++	.notifier_call = wakeup_reason_pm_event,
++};
++
++/* Initializes the sysfs parameter
++ * registers the pm_event notifier
++ */
++int __init wakeup_reason_init(void)
++{
++	int retval;
++	spin_lock_init(&resume_reason_lock);
++	retval = register_pm_notifier(&wakeup_reason_pm_notifier_block);
++	if (retval)
++		printk(KERN_WARNING "[%s] failed to register PM notifier %d\n",
++				__func__, retval);
++
++	wakeup_reason = kobject_create_and_add("wakeup_reasons", kernel_kobj);
++	if (!wakeup_reason) {
++		printk(KERN_WARNING "[%s] failed to create a sysfs kobject\n",
++				__func__);
++		return 1;
++	}
++	retval = sysfs_create_group(wakeup_reason, &attr_group);
++	if (retval) {
++		kobject_put(wakeup_reason);
++		printk(KERN_WARNING "[%s] failed to create a sysfs group %d\n",
++				__func__, retval);
++	}
++	return 0;
++}
++
++late_initcall(wakeup_reason_init);
+diff -Naur kernel/sched/core.c kernel/sched/core.c
+--- kernel/sched/core.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/sched/core.c	2014-08-31 12:21:05.967941859 -0300
+@@ -7040,15 +7040,31 @@
+ 	return (nested == preempt_offset);
+ }
+ 
++/**
++ * pstglia - Android-x86 change
++ */
++static int __might_sleep_init_called;
++int __init __might_sleep_init(void)
++{
++      __might_sleep_init_called = 1;
++      return 0;
++}
++early_initcall(__might_sleep_init);
++
+ void __might_sleep(const char *file, int line, int preempt_offset)
+ {
+ 	static unsigned long prev_jiffy;	/* ratelimiting */
+ 
+ 	rcu_sleep_check(); /* WARN_ON_ONCE() by default, no rate limit reqd. */
++
+ 	if ((preempt_count_equals(preempt_offset) && !irqs_disabled() &&
+-	     !is_idle_task(current)) ||
+-	    system_state != SYSTEM_RUNNING || oops_in_progress)
++	     !is_idle_task(current)) || oops_in_progress)
++	    return;
++	if (system_state != SYSTEM_RUNNING &&
++	    (!__might_sleep_init_called || system_state != SYSTEM_BOOTING))
+ 		return;
++
++		
+ 	if (time_before(jiffies, prev_jiffy + HZ) && prev_jiffy)
+ 		return;
+ 	prev_jiffy = jiffies;
+@@ -7714,6 +7730,25 @@
+ 	sched_offline_group(tg);
+ }
+ 
++/**
++ * pstglia - Android-x86 change
++ */
++cpu_cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
++{
++      const struct cred *cred = current_cred(), *tcred;
++      struct task_struct *task;
++
++      cgroup_taskset_for_each(task, tset) {
++              tcred = __task_cred(task);
++
++              if ((current != task) && !capable(CAP_SYS_NICE) &&
++                  cred->euid.val != tcred->uid.val && cred->euid.val != tcred->suid.val)
++                      return -EACCES;
++      }
++
++      return 0;
++}
++
+ static int cpu_cgroup_can_attach(struct cgroup_subsys_state *css,
+ 				 struct cgroup_taskset *tset)
+ {
+@@ -8082,6 +8117,7 @@
+ 	.css_offline	= cpu_cgroup_css_offline,
+ 	.can_attach	= cpu_cgroup_can_attach,
+ 	.attach		= cpu_cgroup_attach,
++	.allow_attach   = cpu_cgroup_allow_attach,
+ 	.exit		= cpu_cgroup_exit,
+ 	.base_cftypes	= cpu_files,
+ 	.early_init	= 1,
+diff -Naur kernel/sys.c kernel/sys.c
+--- kernel/sys.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/sys.c	2014-08-31 12:21:06.007941854 -0300
+@@ -41,6 +41,11 @@
+ #include <linux/syscore_ops.h>
+ #include <linux/version.h>
+ #include <linux/ctype.h>
++/**
++ * pstglia - Android-x86 changes
++ */
++#include <linux/mm.h>
++#include <linux/mempolicy.h>
+ 
+ #include <linux/compat.h>
+ #include <linux/syscalls.h>
+@@ -1833,6 +1838,156 @@
+ }
+ #endif
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_MMU
++static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
++              struct vm_area_struct **prev,
++              unsigned long start, unsigned long end,
++              const char __user *name_addr)
++{
++      struct mm_struct * mm = vma->vm_mm;
++      int error = 0;
++      pgoff_t pgoff;
++
++      if (name_addr == vma_get_anon_name(vma)) {
++              *prev = vma;
++              goto out;
++      }
++
++      pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
++      *prev = vma_merge(mm, *prev, start, end, vma->vm_flags, vma->anon_vma,
++                              vma->vm_file, pgoff, vma_policy(vma),
++                              name_addr);
++      if (*prev) {
++              vma = *prev;
++              goto success;
++      }
++
++      *prev = vma;
++
++      if (start != vma->vm_start) {
++              error = split_vma(mm, vma, start, 1);
++              if (error)
++                      goto out;
++      }
++
++      if (end != vma->vm_end) {
++              error = split_vma(mm, vma, end, 0);
++              if (error)
++                      goto out;
++      }
++
++success:
++      if (!vma->vm_file)
++              vma->shared.anon_name = name_addr;
++
++out:
++      if (error == -ENOMEM)
++              error = -EAGAIN;
++      return error;
++}
++
++static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
++                      unsigned long arg)
++{
++      unsigned long tmp;
++      struct vm_area_struct * vma, *prev;
++      int unmapped_error = 0;
++      int error = -EINVAL;
++
++      /*
++       * If the interval [start,end) covers some unmapped address
++       * ranges, just ignore them, but return -ENOMEM at the end.
++       * - this matches the handling in madvise.
++       */
++      vma = find_vma_prev(current->mm, start, &prev);
++      if (vma && start > vma->vm_start)
++              prev = vma;
++
++      for (;;) {
++              /* Still start < end. */
++              error = -ENOMEM;
++              if (!vma)
++                      return error;
++
++              /* Here start < (end|vma->vm_end). */
++              if (start < vma->vm_start) {
++                      unmapped_error = -ENOMEM;
++                      start = vma->vm_start;
++                      if (start >= end)
++                              return error;
++              }
++
++              /* Here vma->vm_start <= start < (end|vma->vm_end) */
++              tmp = vma->vm_end;
++              if (end < tmp)
++                      tmp = end;
++
++              /* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
++              error = prctl_update_vma_anon_name(vma, &prev, start, end,
++                              (const char __user *)arg);
++              if (error)
++                      return error;
++              start = tmp;
++              if (prev && start < prev->vm_end)
++                      start = prev->vm_end;
++              error = unmapped_error;
++              if (start >= end)
++                      return error;
++              if (prev)
++                      vma = prev->vm_next;
++              else    /* madvise_remove dropped mmap_sem */
++                      vma = find_vma(current->mm, start);
++      }
++}
++
++static int prctl_set_vma(unsigned long opt, unsigned long start,
++              unsigned long len_in, unsigned long arg)
++{
++      struct mm_struct *mm = current->mm;
++      int error;
++      unsigned long len;
++      unsigned long end;
++
++      if (start & ~PAGE_MASK)
++              return -EINVAL;
++      len = (len_in + ~PAGE_MASK) & PAGE_MASK;
++
++      /* Check to see whether len was rounded up from small -ve to zero */
++      if (len_in && !len)
++              return -EINVAL;
++
++      end = start + len;
++      if (end < start)
++              return -EINVAL;
++
++      if (end == start)
++              return 0;
++
++      down_write(&mm->mmap_sem);
++
++      switch (opt) {
++      case PR_SET_VMA_ANON_NAME:
++              error = prctl_set_vma_anon_name(start, end, arg);
++              break;
++      default:
++              error = -EINVAL;
++      }
++
++      up_write(&mm->mmap_sem);
++
++      return error;
++}
++#else /* CONFIG_MMU */
++static int prctl_set_vma(unsigned long opt, unsigned long start,
++              unsigned long len_in, unsigned long arg)
++{
++      return -EINVAL;
++}
++#endif
++
+ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
+ 		unsigned long, arg4, unsigned long, arg5)
+ {
+@@ -2011,6 +2166,14 @@
+ 			me->mm->def_flags &= ~VM_NOHUGEPAGE;
+ 		up_write(&me->mm->mmap_sem);
+ 		break;
++		
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	case PR_SET_VMA:
++		error = prctl_set_vma(arg2, arg3, arg4, arg5);
++		break;
++		
+ 	default:
+ 		error = -EINVAL;
+ 		break;
+diff -Naur kernel/sysctl.c kernel/sysctl.c
+--- kernel/sysctl.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/sysctl.c	2014-08-31 12:21:05.912941865 -0300
+@@ -104,6 +104,13 @@
+ extern unsigned int core_pipe_limit;
+ #endif
+ extern int pid_max;
++
++/**
++ * pstglia - Android-x86 changes
++ */
++extern int extra_free_kbytes;
++extern int min_free_order_shift;
++
+ extern int pid_max_min, pid_max_max;
+ extern int percpu_pagelist_fraction;
+ extern int compat_log;
+@@ -1320,6 +1327,23 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= min_free_kbytes_sysctl_handler,
+ 		.extra1		= &zero,
++
++	},
++	{
++		.procname       = "extra_free_kbytes",
++		.data           = &extra_free_kbytes,
++		.maxlen         = sizeof(extra_free_kbytes),
++		.mode           = 0644,
++		.proc_handler   = min_free_kbytes_sysctl_handler,
++		.extra1         = &zero,
++	},
++	{
++		.procname       = "min_free_order_shift",
++		.data           = &min_free_order_shift,
++		.maxlen         = sizeof(min_free_order_shift),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++		  
+ 	},
+ 	{
+ 		.procname	= "percpu_pagelist_fraction",
+diff -Naur kernel/trace/Kconfig kernel/trace/Kconfig
+--- kernel/trace/Kconfig	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/Kconfig	2014-08-31 12:21:06.150941836 -0300
+@@ -82,6 +82,9 @@
+ 	select CONTEXT_SWITCH_TRACER
+ 	bool
+ 
++config GPU_TRACEPOINTS
++      bool
++	
+ config CONTEXT_SWITCH_TRACER
+ 	bool
+ 
+diff -Naur kernel/trace/Makefile kernel/trace/Makefile
+--- kernel/trace/Makefile	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/Makefile	2014-08-31 12:21:06.120941840 -0300
+@@ -65,4 +65,6 @@
+ 
+ obj-$(CONFIG_TRACEPOINT_BENCHMARK) += trace_benchmark.o
+ 
++obj-$(CONFIG_GPU_TRACEPOINTS) += gpu-traces.o
++
+ libftrace-y := ftrace.o
+diff -Naur kernel/trace/gpu-traces.c kernel/trace/gpu-traces.c
+--- kernel/trace/gpu-traces.c	1969-12-31 21:00:00.000000000 -0300
++++ kernel/trace/gpu-traces.c	2014-08-31 12:21:06.179941833 -0300
+@@ -0,0 +1,23 @@
++/*
++ * GPU tracepoints
++ *
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#include <linux/module.h>
++
++#define CREATE_TRACE_POINTS
++#include <trace/events/gpu.h>
++
++EXPORT_TRACEPOINT_SYMBOL(gpu_sched_switch);
++EXPORT_TRACEPOINT_SYMBOL(gpu_job_enqueue);
+diff -Naur kernel/trace/trace.c kernel/trace/trace.c
+--- kernel/trace/trace.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/trace.c	2014-08-31 12:21:06.131941839 -0300
+@@ -812,6 +812,7 @@
+ 	"irq-info",
+ 	"markers",
+ 	"function-trace",
++	"print-tgid",
+ 	NULL
+ };
+ 
+@@ -1306,6 +1307,7 @@
+ 	unsigned map_pid_to_cmdline[PID_MAX_DEFAULT+1];
+ 	unsigned *map_cmdline_to_pid;
+ 	unsigned cmdline_num;
++	unsigned saved_tgids[SAVED_CMDLINES_DEFAULT+1];
+ 	int cmdline_idx;
+ 	char *saved_cmdlines;
+ };
+@@ -1539,6 +1541,8 @@
+ 	}
+ 
+ 	set_cmdline(idx, tsk->comm);
++	
++	savedcmd->saved_tgids[idx] = tsk->tgid;
+ 
+ 	arch_spin_unlock(&trace_cmdline_lock);
+ 
+@@ -1582,6 +1586,25 @@
+ 	preempt_enable();
+ }
+ 
++int trace_find_tgid(int pid)
++{
++      unsigned map;
++      int tgid;
++
++      preempt_disable();
++      arch_spin_lock(&trace_cmdline_lock);
++      map = savedcmd->map_pid_to_cmdline[pid];
++      if (map != NO_CMDLINE_MAP)
++              tgid = savedcmd->saved_tgids[map];
++      else
++              tgid = -1;
++
++      arch_spin_unlock(&trace_cmdline_lock);
++      preempt_enable();
++
++      return tgid;
++}
++
+ void tracing_record_cmdline(struct task_struct *tsk)
+ {
+ 	if (atomic_read(&trace_record_cmdline_disabled) || !tracing_is_on())
+@@ -2559,6 +2582,13 @@
+ 	seq_puts(m, "#              | |       |          |         |\n");
+ }
+ 
++static void print_func_help_header_tgid(struct trace_buffer *buf, struct seq_file *m)
++{
++      print_event_info(buf, m);
++      seq_puts(m, "#           TASK-PID    TGID   CPU#      TIMESTAMP  FUNCTION\n");
++      seq_puts(m, "#              | |        |      |          |         |\n");
++}
++
+ static void print_func_help_header_irq(struct trace_buffer *buf, struct seq_file *m)
+ {
+ 	print_event_info(buf, m);
+@@ -2571,6 +2601,18 @@
+ 	seq_puts(m, "#              | |       |   ||||       |         |\n");
+ }
+ 
++static void print_func_help_header_irq_tgid(struct trace_buffer *buf, struct seq_file *m)
++{
++      print_event_info(buf, m);
++      seq_puts(m, "#                                      _-----=> irqs-off\n");
++      seq_puts(m, "#                                     / _----=> need-resched\n");
++      seq_puts(m, "#                                    | / _---=> hardirq/softirq\n");
++      seq_puts(m, "#                                    || / _--=> preempt-depth\n");
++      seq_puts(m, "#                                    ||| /     delay\n");
++      seq_puts(m, "#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION\n");
++      seq_puts(m, "#              | |        |      |   ||||       |         |\n");
++}
++
+ void
+ print_trace_header(struct seq_file *m, struct trace_iterator *iter)
+ {
+@@ -2871,9 +2913,15 @@
+ 	} else {
+ 		if (!(trace_flags & TRACE_ITER_VERBOSE)) {
+ 			if (trace_flags & TRACE_ITER_IRQ_INFO)
+-				print_func_help_header_irq(iter->trace_buffer, m);
++				if (trace_flags & TRACE_ITER_TGID)
++					print_func_help_header_irq_tgid(iter->trace_buffer, m);
++				else
++					print_func_help_header_irq(iter->trace_buffer, m);
+ 			else
+-				print_func_help_header(iter->trace_buffer, m);
++				if (trace_flags & TRACE_ITER_TGID)
++					print_func_help_header_tgid(iter->trace_buffer, m);
++				else
++					print_func_help_header(iter->trace_buffer, m);
+ 		}
+ 	}
+ }
+@@ -3918,6 +3966,50 @@
+ };
+ 
+ static ssize_t
++tracing_saved_tgids_read(struct file *file, char __user *ubuf,
++                              size_t cnt, loff_t *ppos)
++{
++      char *file_buf;
++      char *buf;
++      int len = 0;
++      int pid;
++      int i;
++
++      file_buf = kmalloc(SAVED_CMDLINES_DEFAULT*(16+1+16), GFP_KERNEL);
++      if (!file_buf)
++              return -ENOMEM;
++
++      buf = file_buf;
++
++      for (i = 0; i < SAVED_CMDLINES_DEFAULT; i++) {
++              int tgid;
++              int r;
++
++              pid = savedcmd->map_cmdline_to_pid[i];
++              if (pid == -1 || pid == NO_CMDLINE_MAP)
++                      continue;
++
++              tgid = trace_find_tgid(pid);
++              r = sprintf(buf, "%d %d\n", pid, tgid);
++              buf += r;
++              len += r;
++      }
++
++      len = simple_read_from_buffer(ubuf, cnt, ppos,
++                                    file_buf, len);
++
++      kfree(file_buf);
++
++      return len;
++}
++
++static const struct file_operations tracing_saved_tgids_fops = {
++      .open   = tracing_open_generic,
++      .read   = tracing_saved_tgids_read,
++      .llseek = generic_file_llseek,
++};
++
++static ssize_t
+ tracing_set_trace_read(struct file *filp, char __user *ubuf,
+ 		       size_t cnt, loff_t *ppos)
+ {
+@@ -6496,6 +6588,9 @@
+ 	trace_create_file("trace_marker", 0220, d_tracer,
+ 			  tr, &tracing_mark_fops);
+ 
++	trace_create_file("saved_tgids", 0444, d_tracer,
++			  tr, &tracing_saved_tgids_fops);
++
+ 	trace_create_file("trace_clock", 0644, d_tracer, tr,
+ 			  &trace_clock_fops);
+ 
+diff -Naur kernel/trace/trace.h kernel/trace/trace.h
+--- kernel/trace/trace.h	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/trace.h	2014-08-31 12:21:06.157941835 -0300
+@@ -657,6 +657,11 @@
+ 
+ extern void trace_find_cmdline(int pid, char comm[]);
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++extern int trace_find_tgid(int pid);
++
+ #ifdef CONFIG_DYNAMIC_FTRACE
+ extern unsigned long ftrace_update_tot_cnt;
+ #endif
+@@ -936,6 +941,7 @@
+ 	TRACE_ITER_IRQ_INFO		= 0x800000,
+ 	TRACE_ITER_MARKERS		= 0x1000000,
+ 	TRACE_ITER_FUNCTION		= 0x2000000,
++	TRACE_ITER_TGID                 = 0x4000000,
+ };
+ 
+ /*
+diff -Naur kernel/trace/trace_functions_graph.c kernel/trace/trace_functions_graph.c
+--- kernel/trace/trace_functions_graph.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/trace_functions_graph.c	2014-08-31 12:21:06.103941842 -0300
+@@ -38,6 +38,11 @@
+ 
+ #define TRACE_GRAPH_INDENT	2
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++#define TRACE_GRAPH_PRINT_FLAT                0x80
++
+ static unsigned int max_depth;
+ 
+ static struct tracer_opt trace_opts[] = {
+@@ -57,6 +62,8 @@
+ 	{ TRACER_OPT(funcgraph-irqs, TRACE_GRAPH_PRINT_IRQS) },
+ 	/* Display function name after trailing } */
+ 	{ TRACER_OPT(funcgraph-tail, TRACE_GRAPH_PRINT_TAIL) },
++	/* Use standard trace formatting rather than hierarchical */
++	{ TRACER_OPT(funcgraph-flat, TRACE_GRAPH_PRINT_FLAT) },
+ 	{ } /* Empty entry */
+ };
+ 
+@@ -1278,6 +1285,12 @@
+ 	int cpu = iter->cpu;
+ 	int ret;
+ 
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	if (flags & TRACE_GRAPH_PRINT_FLAT)
++		return TRACE_TYPE_UNHANDLED;
++	
+ 	if (data && per_cpu_ptr(data->cpu_data, cpu)->ignore) {
+ 		per_cpu_ptr(data->cpu_data, cpu)->ignore = 0;
+ 		return TRACE_TYPE_HANDLED;
+@@ -1335,13 +1348,6 @@
+ 	return print_graph_function_flags(iter, tracer_flags.val);
+ }
+ 
+-static enum print_line_t
+-print_graph_function_event(struct trace_iterator *iter, int flags,
+-			   struct trace_event *event)
+-{
+-	return print_graph_function(iter);
+-}
+-
+ static void print_lat_header(struct seq_file *s, u32 flags)
+ {
+ 	static const char spaces[] = "                "	/* 16 spaces */
+@@ -1407,6 +1413,14 @@
+ void print_graph_headers_flags(struct seq_file *s, u32 flags)
+ {
+ 	struct trace_iterator *iter = s->private;
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	if (flags & TRACE_GRAPH_PRINT_FLAT) {
++		trace_default_header(s);
++		return;
++	}
+ 
+ 	if (!(trace_flags & TRACE_ITER_CONTEXT_INFO))
+ 		return;
+@@ -1479,20 +1493,6 @@
+ 	return 0;
+ }
+ 
+-static struct trace_event_functions graph_functions = {
+-	.trace		= print_graph_function_event,
+-};
+-
+-static struct trace_event graph_trace_entry_event = {
+-	.type		= TRACE_GRAPH_ENT,
+-	.funcs		= &graph_functions,
+-};
+-
+-static struct trace_event graph_trace_ret_event = {
+-	.type		= TRACE_GRAPH_RET,
+-	.funcs		= &graph_functions
+-};
+-
+ static struct tracer graph_trace __tracer_data = {
+ 	.name		= "function_graph",
+ 	.open		= graph_trace_open,
+@@ -1567,16 +1567,6 @@
+ {
+ 	max_bytes_for_cpu = snprintf(NULL, 0, "%d", nr_cpu_ids - 1);
+ 
+-	if (!register_ftrace_event(&graph_trace_entry_event)) {
+-		pr_warning("Warning: could not register graph trace events\n");
+-		return 1;
+-	}
+-
+-	if (!register_ftrace_event(&graph_trace_ret_event)) {
+-		pr_warning("Warning: could not register graph trace events\n");
+-		return 1;
+-	}
+-
+ 	return register_tracer(&graph_trace);
+ }
+ 
+diff -Naur kernel/trace/trace_output.c kernel/trace/trace_output.c
+--- kernel/trace/trace_output.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/trace/trace_output.c	2014-08-31 12:21:06.163941835 -0300
+@@ -789,11 +789,33 @@
+ 	unsigned long secs, usec_rem;
+ 	char comm[TASK_COMM_LEN];
+ 	int ret;
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	int tgid;
+ 
+ 	trace_find_cmdline(entry->pid, comm);
+ 
+-	ret = trace_seq_printf(s, "%16s-%-5d [%03d] ",
+-			       comm, entry->pid, iter->cpu);
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	ret = trace_seq_printf(s, "%16s-%-5d ", comm, entry->pid);
++	if (!ret)
++		return 0;
++
++	if (trace_flags & TRACE_ITER_TGID) {
++		tgid = trace_find_tgid(entry->pid);
++		if (tgid < 0)
++			ret = trace_seq_puts(s, "(-----) ");
++		else
++			ret = trace_seq_printf(s, "(%5d) ", tgid);
++		if (!ret)
++			return 0;
++	}
++
++	ret = trace_seq_printf(s, "[%03d] ", iter->cpu);	
++	
+ 	if (!ret)
+ 		return 0;
+ 
+@@ -1122,6 +1144,171 @@
+ 	.funcs		= &trace_fn_funcs,
+ };
+ 
++/**
++ * pstglia - Android-x86 changes
++ */
++/* TRACE_GRAPH_ENT */
++static enum print_line_t trace_graph_ent_trace(struct trace_iterator *iter, int flags,
++                                      struct trace_event *event)
++{
++      struct trace_seq *s = &iter->seq;
++      struct ftrace_graph_ent_entry *field;
++
++      trace_assign_type(field, iter->ent);
++
++      if (!trace_seq_puts(s, "graph_ent: func="))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      if (!seq_print_ip_sym(s, field->graph_ent.func, flags))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      if (!trace_seq_puts(s, "\n"))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ent_raw(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ent_entry *field;
++
++      trace_assign_type(field, iter->ent);
++
++      if (!trace_seq_printf(&iter->seq, "%lx %d\n",
++                            field->graph_ent.func,
++                            field->graph_ent.depth))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ent_hex(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ent_entry *field;
++      struct trace_seq *s = &iter->seq;
++
++      trace_assign_type(field, iter->ent);
++
++      SEQ_PUT_HEX_FIELD_RET(s, field->graph_ent.func);
++      SEQ_PUT_HEX_FIELD_RET(s, field->graph_ent.depth);
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ent_bin(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ent_entry *field;
++      struct trace_seq *s = &iter->seq;
++
++      trace_assign_type(field, iter->ent);
++
++      SEQ_PUT_FIELD_RET(s, field->graph_ent.func);
++      SEQ_PUT_FIELD_RET(s, field->graph_ent.depth);
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static struct trace_event_functions trace_graph_ent_funcs = {
++      .trace          = trace_graph_ent_trace,
++      .raw            = trace_graph_ent_raw,
++      .hex            = trace_graph_ent_hex,
++      .binary         = trace_graph_ent_bin,
++};
++
++static struct trace_event trace_graph_ent_event = {
++      .type           = TRACE_GRAPH_ENT,
++      .funcs          = &trace_graph_ent_funcs,
++};
++
++/* TRACE_GRAPH_RET */
++static enum print_line_t trace_graph_ret_trace(struct trace_iterator *iter, int flags,
++                                      struct trace_event *event)
++{
++      struct trace_seq *s = &iter->seq;
++      struct trace_entry *entry = iter->ent;
++      struct ftrace_graph_ret_entry *field;
++
++      trace_assign_type(field, entry);
++
++      if (!trace_seq_puts(s, "graph_ret: func="))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      if (!seq_print_ip_sym(s, field->ret.func, flags))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      if (!trace_seq_puts(s, "\n"))
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ret_raw(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ret_entry *field;
++
++      trace_assign_type(field, iter->ent);
++
++      if (!trace_seq_printf(&iter->seq, "%lx %lld %lld %ld %d\n",
++                            field->ret.func,
++                            field->ret.calltime,
++                            field->ret.rettime,
++                            field->ret.overrun,
++                            field->ret.depth));
++              return TRACE_TYPE_PARTIAL_LINE;
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ret_hex(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ret_entry *field;
++      struct trace_seq *s = &iter->seq;
++
++      trace_assign_type(field, iter->ent);
++
++      SEQ_PUT_HEX_FIELD_RET(s, field->ret.func);
++      SEQ_PUT_HEX_FIELD_RET(s, field->ret.calltime);
++      SEQ_PUT_HEX_FIELD_RET(s, field->ret.rettime);
++      SEQ_PUT_HEX_FIELD_RET(s, field->ret.overrun);
++      SEQ_PUT_HEX_FIELD_RET(s, field->ret.depth);
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static enum print_line_t trace_graph_ret_bin(struct trace_iterator *iter, int flags,
++                                    struct trace_event *event)
++{
++      struct ftrace_graph_ret_entry *field;
++      struct trace_seq *s = &iter->seq;
++
++      trace_assign_type(field, iter->ent);
++
++      SEQ_PUT_FIELD_RET(s, field->ret.func);
++      SEQ_PUT_FIELD_RET(s, field->ret.calltime);
++      SEQ_PUT_FIELD_RET(s, field->ret.rettime);
++      SEQ_PUT_FIELD_RET(s, field->ret.overrun);
++      SEQ_PUT_FIELD_RET(s, field->ret.depth);
++
++      return TRACE_TYPE_HANDLED;
++}
++
++static struct trace_event_functions trace_graph_ret_funcs = {
++      .trace          = trace_graph_ret_trace,
++      .raw            = trace_graph_ret_raw,
++      .hex            = trace_graph_ret_hex,
++      .binary         = trace_graph_ret_bin,
++};
++
++static struct trace_event trace_graph_ret_event = {
++      .type           = TRACE_GRAPH_RET,
++      .funcs          = &trace_graph_ret_funcs,
++};
++
+ /* TRACE_CTX an TRACE_WAKE */
+ static enum print_line_t trace_ctxwake_print(struct trace_iterator *iter,
+ 					     char *delim)
+@@ -1512,6 +1699,8 @@
+ 
+ static struct trace_event *events[] __initdata = {
+ 	&trace_fn_event,
++	&trace_graph_ent_event,
++	&trace_graph_ret_event,
+ 	&trace_ctx_event,
+ 	&trace_wake_event,
+ 	&trace_stack_event,
+diff -Naur kernel/watchdog.c kernel/watchdog.c
+--- kernel/watchdog.c	2014-08-03 19:25:02.000000000 -0300
++++ kernel/watchdog.c	2014-08-31 12:21:05.899941867 -0300
+@@ -51,6 +51,16 @@
+ static DEFINE_PER_CPU(bool, hard_watchdog_warn);
+ static DEFINE_PER_CPU(bool, watchdog_nmi_touch);
+ static DEFINE_PER_CPU(unsigned long, hrtimer_interrupts_saved);
++
++/**
++ * pstglia - Android-x86 changes
++ */
++#endif
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
++static cpumask_t __read_mostly watchdog_cpus;
++#endif
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_NMI
++
+ static DEFINE_PER_CPU(struct perf_event *, watchdog_ev);
+ #endif
+ static unsigned long soft_lockup_nmi_warn;
+@@ -198,7 +208,11 @@
+ 	__raw_get_cpu_var(watchdog_touch_ts) = 0;
+ }
+ 
+-#ifdef CONFIG_HARDLOCKUP_DETECTOR
++
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_NMI
+ /* watchdog detector functions */
+ static int is_hardlockup(void)
+ {
+@@ -212,6 +226,81 @@
+ }
+ #endif
+ 
++
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
++static unsigned int watchdog_next_cpu(unsigned int cpu)
++{
++      cpumask_t cpus = watchdog_cpus;
++      unsigned int next_cpu;
++
++      next_cpu = cpumask_next(cpu, &cpus);
++      if (next_cpu >= nr_cpu_ids)
++              next_cpu = cpumask_first(&cpus);
++
++      if (next_cpu == cpu)
++              return nr_cpu_ids;
++
++      return next_cpu;
++}
++
++static int is_hardlockup_other_cpu(unsigned int cpu)
++{
++      unsigned long hrint = per_cpu(hrtimer_interrupts, cpu);
++
++      if (per_cpu(hrtimer_interrupts_saved, cpu) == hrint)
++              return 1;
++
++      per_cpu(hrtimer_interrupts_saved, cpu) = hrint;
++      return 0;
++}
++
++static void watchdog_check_hardlockup_other_cpu(void)
++{
++      unsigned int next_cpu;
++
++      /*
++       * Test for hardlockups every 3 samples.  The sample period is
++       *  watchdog_thresh * 2 / 5, so 3 samples gets us back to slightly over
++       *  watchdog_thresh (over by 20%).
++       */
++      if (__this_cpu_read(hrtimer_interrupts) % 3 != 0)
++              return;
++
++      /* check for a hardlockup on the next cpu */
++      next_cpu = watchdog_next_cpu(smp_processor_id());
++      if (next_cpu >= nr_cpu_ids)
++              return;
++
++      smp_rmb();
++
++      if (per_cpu(watchdog_nmi_touch, next_cpu) == true) {
++              per_cpu(watchdog_nmi_touch, next_cpu) = false;
++              return;
++      }
++
++      if (is_hardlockup_other_cpu(next_cpu)) {
++              /* only warn once */
++              if (per_cpu(hard_watchdog_warn, next_cpu) == true)
++                      return;
++
++              if (hardlockup_panic)
++                      panic("Watchdog detected hard LOCKUP on cpu %u", next_cpu
++              else
++                      WARN(1, "Watchdog detected hard LOCKUP on cpu %u", next_c
++
++              per_cpu(hard_watchdog_warn, next_cpu) = true;
++      } else {
++              per_cpu(hard_watchdog_warn, next_cpu) = false;
++      }
++}
++#else
++static inline void watchdog_check_hardlockup_other_cpu(void) { return; }
++#endif
++
++
+ static int is_softlockup(unsigned long touch_ts)
+ {
+ 	unsigned long now = get_timestamp();
+@@ -223,7 +312,10 @@
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_HARDLOCKUP_DETECTOR
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_NMI
+ 
+ static struct perf_event_attr wd_hw_attr = {
+ 	.type		= PERF_TYPE_HARDWARE,
+@@ -271,7 +363,7 @@
+ 	__this_cpu_write(hard_watchdog_warn, false);
+ 	return;
+ }
+-#endif /* CONFIG_HARDLOCKUP_DETECTOR */
++#endif /* CONFIG_HARDLOCKUP_DETECTOR_NMI */
+ 
+ static void watchdog_interrupt_count(void)
+ {
+@@ -291,6 +383,12 @@
+ 
+ 	/* kick the hardlockup detector */
+ 	watchdog_interrupt_count();
++	
++	/**
++	 * pstglia - Android-x86 changes
++	 */
++	/* test for hardlockups on the next cpu */
++	watchdog_check_hardlockup_other_cpu();
+ 
+ 	/* kick the softlockup detector */
+ 	wake_up_process(__this_cpu_read(softlockup_watchdog));
+@@ -438,7 +536,10 @@
+ 	__touch_watchdog();
+ }
+ 
+-#ifdef CONFIG_HARDLOCKUP_DETECTOR
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_NMI
+ /*
+  * People like the simple clean cpu node info on boot.
+  * Reduce the watchdog noise by only printing messages
+@@ -514,9 +615,48 @@
+ 	return;
+ }
+ #else
++/**
++ * pstglia - Android-x86 changes
++ */
++#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
++static int watchdog_nmi_enable(unsigned int cpu)
++{
++      /*
++       * The new cpu will be marked online before the first hrtimer interrupt
++       * runs on it.  If another cpu tests for a hardlockup on the new cpu
++       * before it has run its first hrtimer, it will get a false positive.
++       * Touch the watchdog on the new cpu to delay the first check for at
++       * least 3 sampling periods to guarantee one hrtimer has run on the new
++       * cpu.
++       */
++      per_cpu(watchdog_nmi_touch, cpu) = true;
++      smp_wmb();
++      cpumask_set_cpu(cpu, &watchdog_cpus);
++      return 0;
++}
++
++static void watchdog_nmi_disable(unsigned int cpu)
++{
++      unsigned int next_cpu = watchdog_next_cpu(cpu);
++
++      /*
++       * Offlining this cpu will cause the cpu before this one to start
++       * checking the one after this one.  If this cpu just finished checking
++       * the next cpu and updating hrtimer_interrupts_saved, and then the
++       * previous cpu checks it within one sample period, it will trigger a
++       * false positive.  Touch the watchdog on the next cpu to prevent it.
++       */
++      if (next_cpu < nr_cpu_ids)
++              per_cpu(watchdog_nmi_touch, next_cpu) = true;
++      smp_wmb();
++      cpumask_clear_cpu(cpu, &watchdog_cpus);
++}
++#else
+ static int watchdog_nmi_enable(unsigned int cpu) { return 0; }
+ static void watchdog_nmi_disable(unsigned int cpu) { return; }
+-#endif /* CONFIG_HARDLOCKUP_DETECTOR */
++#endif /* CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU */
++#endif /* CONFIG_HARDLOCKUP_DETECTOR_NMI */
++
+ 
+ static struct smp_hotplug_thread watchdog_threads = {
+ 	.store			= &softlockup_watchdog,

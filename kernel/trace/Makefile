@@ -65,4 +65,6 @@ obj-$(CONFIG_UPROBE_EVENT) += trace_uprobe.o
 
 obj-$(CONFIG_TRACEPOINT_BENCHMARK) += trace_benchmark.o
 
+obj-$(CONFIG_GPU_TRACEPOINTS) += gpu-traces.o
+
 libftrace-y := ftrace.o

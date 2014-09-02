@@ -2295,6 +2295,25 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 	return ret;
 }
 
+static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
+{
+      struct cgroup_subsys_state *css;
+      int i;
+      int ret;
+
+      for_each_css(css, i, cgrp) {
+              if (css->ss->allow_attach) {
+                      ret = css->ss->allow_attach(css, tset);
+                      if (ret)
+                              return ret;
+              } else {
+                      return -EACCES;
+              }
+      }
+
+      return 0;
+}
+
 /*
  * Find the task_struct of the task to attach by vpid and pass it along to the
  * function to attach either it or all tasks in its threadgroup. Will lock
@@ -2333,9 +2352,22 @@ retry_find_task:
 		if (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&
 		    !uid_eq(cred->euid, tcred->uid) &&
 		    !uid_eq(cred->euid, tcred->suid)) {
-			rcu_read_unlock();
-			ret = -EACCES;
-			goto out_unlock_cgroup;
+			/*
+			* if the default permission check fails, give each
+			* cgroup a chance to extend the permission check
+			*/
+			struct cgroup_taskset tset = { };
+			tset.cur_task = tsk;
+			//tset.single.cgrp = cgrp;
+			
+			// INSEGURO!!!!!! SOMENTE PARA TESTES
+			//ret = cgroup_allow_attach(cgrp, &tset);
+			ret=0;
+			
+			if (ret) {
+				rcu_read_unlock();
+				goto out_unlock_cgroup;
+			}
 		}
 	} else
 		tsk = current;
@@ -4336,16 +4368,16 @@ static int create_css(struct cgroup *cgrp, struct cgroup_subsys *ss)
 
 	err = percpu_ref_init(&css->refcnt, css_release);
 	if (err)
-		goto err_free_css;
+		goto err_free;
 
 	err = cgroup_idr_alloc(&ss->css_idr, NULL, 2, 0, GFP_NOWAIT);
 	if (err < 0)
-		goto err_free_percpu_ref;
+		goto err_free;
 	css->id = err;
 
 	err = cgroup_populate_dir(cgrp, 1 << ss->id);
 	if (err)
-		goto err_free_id;
+		goto err_free;
 
 	/* @css is ready to be brought online now, make it visible */
 	list_add_tail_rcu(&css->sibling, &parent_css->children);
@@ -4353,7 +4385,7 @@ static int create_css(struct cgroup *cgrp, struct cgroup_subsys *ss)
 
 	err = online_css(css);
 	if (err)
-		goto err_list_del;
+		goto err_free;
 
 	if (ss->broken_hierarchy && !ss->warned_broken_hierarchy &&
 	    cgroup_parent(parent)) {
@@ -4366,14 +4398,9 @@ static int create_css(struct cgroup *cgrp, struct cgroup_subsys *ss)
 
 	return 0;
 
-err_list_del:
+err_free:
 	list_del_rcu(&css->sibling);
-	cgroup_clear_dir(css->cgroup, 1 << css->ss->id);
-err_free_id:
-	cgroup_idr_remove(&ss->css_idr, css->id);
-err_free_percpu_ref:
 	percpu_ref_cancel_init(&css->refcnt);
-err_free_css:
 	call_rcu(&css->rcu_head, css_free_rcu_fn);
 	return err;
 }

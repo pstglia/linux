@@ -667,8 +667,7 @@ static int selinux_set_mnt_opts(struct super_block *sb,
 
 		if (flags[i] == SBLABEL_MNT)
 			continue;
-		rc = security_context_to_sid(mount_options[i],
-					     strlen(mount_options[i]), &sid, GFP_KERNEL);
+		rc = security_context_to_sid(mount_options[i], len, &sid);
 		if (rc) {
 			printk(KERN_WARNING "SELinux: security_context_to_sid"
 			       "(%s) failed for (dev %s, type %s) errno=%d\n",
@@ -1924,6 +1923,67 @@ static inline u32 open_file_to_av(struct file *file)
 
 /* Hook functions begin here. */
 
+static int selinux_binder_set_context_mgr(struct task_struct *mgr)
+{
+      u32 mysid = current_sid();
+      u32 mgrsid = task_sid(mgr);
+
+      return avc_has_perm(mysid, mgrsid, SECCLASS_BINDER, BINDER__SET_CONTEXT_MGR, NULL);
+}
+
+static int selinux_binder_transaction(struct task_struct *from, struct task_struct *to)
+{
+      u32 mysid = current_sid();
+      u32 fromsid = task_sid(from);
+      u32 tosid = task_sid(to);
+      int rc;
+
+      if (mysid != fromsid) {
+              rc = avc_has_perm(mysid, fromsid, SECCLASS_BINDER, BINDER__IMPERSONATE, NULL);
+              if (rc)
+                      return rc;
+      }
+
+      return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__CALL, NULL);
+}
+
+static int selinux_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
+{
+      u32 fromsid = task_sid(from);
+      u32 tosid = task_sid(to);
+      return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER, NULL);
+}
+
+static int selinux_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
+{
+      u32 sid = task_sid(to);
+      struct file_security_struct *fsec = file->f_security;
+      struct inode *inode = file->f_path.dentry->d_inode;
+      struct inode_security_struct *isec = inode->i_security;
+      struct common_audit_data ad;
+      struct selinux_audit_data sad = {0,};
+      int rc;
+
+      ad.type = LSM_AUDIT_DATA_PATH;
+      ad.u.path = file->f_path;
+      ad.selinux_audit_data = &sad;
+
+      if (sid != fsec->sid) {
+              rc = avc_has_perm(sid, fsec->sid,
+                                SECCLASS_FD,
+                                FD__USE,
+                                &ad);
+              if (rc)
+                      return rc;
+      }
+
+      if (unlikely(IS_PRIVATE(inode)))
+              return 0;
+
+      return avc_has_perm(sid, isec->sid, isec->sclass, file_to_av(file),
+                          &ad);
+}
+
 static int selinux_ptrace_access_check(struct task_struct *child,
 				     unsigned int mode)
 {
@@ -2915,7 +2975,7 @@ static int selinux_inode_setxattr(struct dentry *dentry, const char *name,
 	if (rc)
 		return rc;
 
-	rc = security_context_to_sid(value, size, &newsid, GFP_KERNEL);
+	rc = security_context_to_sid(value, size, &newsid);
 	if (rc == -EINVAL) {
 		if (!capable(CAP_MAC_ADMIN)) {
 			struct audit_buffer *ab;
@@ -3072,7 +3132,7 @@ static int selinux_inode_setsecurity(struct inode *inode, const char *name,
 	if (!value || !size)
 		return -EACCES;
 
-	rc = security_context_to_sid((void *)value, size, &newsid, GFP_KERNEL);
+	rc = security_context_to_sid((void *)value, size, &newsid);
 	if (rc)
 		return rc;
 
@@ -5550,7 +5610,7 @@ static int selinux_setprocattr(struct task_struct *p,
 			str[size-1] = 0;
 			size--;
 		}
-		error = security_context_to_sid(value, size, &sid, GFP_KERNEL);
+		error = security_context_to_sid(value, size, &sid);
 		if (error == -EINVAL && !strcmp(name, "fscreate")) {
 			if (!capable(CAP_MAC_ADMIN)) {
 				struct audit_buffer *ab;
@@ -5659,7 +5719,7 @@ static int selinux_secid_to_secctx(u32 secid, char **secdata, u32 *seclen)
 
 static int selinux_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid)
 {
-	return security_context_to_sid(secdata, seclen, secid, GFP_KERNEL);
+	return security_context_to_sid(secdata, seclen, secid);
 }
 
 static void selinux_release_secctx(char *secdata, u32 seclen)
@@ -5763,6 +5823,14 @@ static int selinux_key_getsecurity(struct key *key, char **_buffer)
 
 static struct security_operations selinux_ops = {
 	.name =				"selinux",
+
+	 /**
+	  * pstglia - Android-x86 change
+	  */
+	.binder_set_context_mgr =       selinux_binder_set_context_mgr,
+	.binder_transaction =           selinux_binder_transaction,
+	.binder_transfer_binder =       selinux_binder_transfer_binder,
+	.binder_transfer_file =         selinux_binder_transfer_file,
 
 	.ptrace_access_check =		selinux_ptrace_access_check,
 	.ptrace_traceme =		selinux_ptrace_traceme,

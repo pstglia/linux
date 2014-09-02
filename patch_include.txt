@@ -1,0 +1,3016 @@
+diff -Naur include/linux/Kbuild include/linux/Kbuild
+--- include/linux/Kbuild	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/Kbuild	2014-08-31 12:21:38.723937866 -0300
+@@ -0,0 +1,2 @@
++header-y += if_pppolac.h
++header-y += if_pppopns.h
+diff -Naur include/linux/amba/mmci.h include/linux/amba/mmci.h
+--- include/linux/amba/mmci.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/amba/mmci.h	2014-08-31 12:21:39.481937773 -0300
+@@ -6,6 +6,16 @@
+ 
+ #include <linux/mmc/host.h>
+ 
++#include <linux/mmc/card.h>
++#include <linux/mmc/sdio_func.h>
++
++struct embedded_sdio_data {
++        struct sdio_cis cis;
++        struct sdio_cccr cccr;
++        struct sdio_embedded_func *funcs;
++        int num_funcs;
++};
++
+ /**
+  * struct mmci_platform_data - platform configuration for the MMCI
+  * (also known as PL180) block.
+@@ -31,6 +41,9 @@
+ 	int	gpio_wp;
+ 	int	gpio_cd;
+ 	bool	cd_invert;
++	unsigned int status_irq;
++	struct embedded_sdio_data *embedded_sdio;
++	int (*register_status_notify)(void (*callback)(int card_present, void *dev_id), void *dev_id);
+ };
+ 
+ #endif
+diff -Naur include/linux/android_aid.h include/linux/android_aid.h
+--- include/linux/android_aid.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/android_aid.h	2014-08-31 12:21:38.143937936 -0300
+@@ -0,0 +1,28 @@
++/* include/linux/android_aid.h
++ *
++ * Copyright (C) 2008 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _LINUX_ANDROID_AID_H
++#define _LINUX_ANDROID_AID_H
++
++/* AIDs that the kernel treats differently */
++#define AID_OBSOLETE_000 KGIDT_INIT(3001)  /* was NET_BT_ADMIN */
++#define AID_OBSOLETE_001 KGIDT_INIT(3002)  /* was NET_BT */
++#define AID_INET         KGIDT_INIT(3003)
++#define AID_NET_RAW      KGIDT_INIT(3004)
++#define AID_NET_ADMIN    KGIDT_INIT(3005)
++#define AID_NET_BW_STATS KGIDT_INIT(3006)  /* read bandwidth statistics */
++#define AID_NET_BW_ACCT  KGIDT_INIT(3007)  /* change bandwidth statistics accounting */
++
++#endif
+diff -Naur include/linux/cgroup.h include/linux/cgroup.h
+--- include/linux/cgroup.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/cgroup.h	2014-08-31 12:21:38.201937929 -0300
+@@ -634,7 +634,8 @@
+ 	int (*css_online)(struct cgroup_subsys_state *css);
+ 	void (*css_offline)(struct cgroup_subsys_state *css);
+ 	void (*css_free)(struct cgroup_subsys_state *css);
+-
++	int (*allow_attach)(struct cgroup_subsys_state *css,
++                    struct cgroup_taskset *tset);
+ 	int (*can_attach)(struct cgroup_subsys_state *css,
+ 			  struct cgroup_taskset *tset);
+ 	void (*cancel_attach)(struct cgroup_subsys_state *css,
+diff -Naur include/linux/cpu.h include/linux/cpu.h
+--- include/linux/cpu.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/cpu.h	2014-08-31 12:21:39.515937769 -0300
+@@ -265,4 +265,11 @@
+ void arch_cpu_idle_exit(void);
+ void arch_cpu_idle_dead(void);
+ 
++#define IDLE_START 1
++#define IDLE_END 2
++
++void idle_notifier_register(struct notifier_block *n);
++void idle_notifier_unregister(struct notifier_block *n);
++void idle_notifier_call_chain(unsigned long val);
++
+ #endif /* _LINUX_CPU_H_ */
+diff -Naur include/linux/cpufreq.h include/linux/cpufreq.h
+--- include/linux/cpufreq.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/cpufreq.h	2014-08-31 12:21:39.542937766 -0300
+@@ -475,6 +475,9 @@
+ #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_CONSERVATIVE)
+ extern struct cpufreq_governor cpufreq_gov_conservative;
+ #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_conservative)
++#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE)
++extern struct cpufreq_governor cpufreq_gov_interactive;
++#define CPUFREQ_DEFAULT_GOVERNOR      (&cpufreq_gov_interactive)
+ #endif
+ 
+ /*********************************************************************
+diff -Naur include/linux/gpio_event.h include/linux/gpio_event.h
+--- include/linux/gpio_event.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/gpio_event.h	2014-08-31 12:21:39.485937773 -0300
+@@ -0,0 +1,170 @@
++/* include/linux/gpio_event.h
++ *
++ * Copyright (C) 2007 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _LINUX_GPIO_EVENT_H
++#define _LINUX_GPIO_EVENT_H
++
++#include <linux/input.h>
++
++struct gpio_event_input_devs {
++	int count;
++	struct input_dev *dev[];
++};
++enum {
++	GPIO_EVENT_FUNC_UNINIT  = 0x0,
++	GPIO_EVENT_FUNC_INIT    = 0x1,
++	GPIO_EVENT_FUNC_SUSPEND = 0x2,
++	GPIO_EVENT_FUNC_RESUME  = 0x3,
++};
++struct gpio_event_info {
++	int (*func)(struct gpio_event_input_devs *input_devs,
++		    struct gpio_event_info *info,
++		    void **data, int func);
++	int (*event)(struct gpio_event_input_devs *input_devs,
++		     struct gpio_event_info *info,
++		     void **data, unsigned int dev, unsigned int type,
++		     unsigned int code, int value); /* out events */
++	bool no_suspend;
++};
++
++struct gpio_event_platform_data {
++	const char *name;
++	struct gpio_event_info **info;
++	size_t info_count;
++	int (*power)(const struct gpio_event_platform_data *pdata, bool on);
++	const char *names[]; /* If name is NULL, names contain a NULL */
++			     /* terminated list of input devices to create */
++};
++
++#define GPIO_EVENT_DEV_NAME "gpio-event"
++
++/* Key matrix */
++
++enum gpio_event_matrix_flags {
++	/* unset: drive active output low, set: drive active output high */
++	GPIOKPF_ACTIVE_HIGH              = 1U << 0,
++	GPIOKPF_DEBOUNCE                 = 1U << 1,
++	GPIOKPF_REMOVE_SOME_PHANTOM_KEYS = 1U << 2,
++	GPIOKPF_REMOVE_PHANTOM_KEYS      = GPIOKPF_REMOVE_SOME_PHANTOM_KEYS |
++					   GPIOKPF_DEBOUNCE,
++	GPIOKPF_DRIVE_INACTIVE           = 1U << 3,
++	GPIOKPF_LEVEL_TRIGGERED_IRQ      = 1U << 4,
++	GPIOKPF_PRINT_UNMAPPED_KEYS      = 1U << 16,
++	GPIOKPF_PRINT_MAPPED_KEYS        = 1U << 17,
++	GPIOKPF_PRINT_PHANTOM_KEYS       = 1U << 18,
++};
++
++#define MATRIX_CODE_BITS (10)
++#define MATRIX_KEY_MASK ((1U << MATRIX_CODE_BITS) - 1)
++#define MATRIX_KEY(dev, code) \
++	(((dev) << MATRIX_CODE_BITS) | (code & MATRIX_KEY_MASK))
++
++extern int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
++			struct gpio_event_info *info, void **data, int func);
++struct gpio_event_matrix_info {
++	/* initialize to gpio_event_matrix_func */
++	struct gpio_event_info info;
++	/* size must be ninputs * noutputs */
++	const unsigned short *keymap;
++	unsigned int *input_gpios;
++	unsigned int *output_gpios;
++	unsigned int ninputs;
++	unsigned int noutputs;
++	/* time to wait before reading inputs after driving each output */
++	ktime_t settle_time;
++	/* time to wait before scanning the keypad a second time */
++	ktime_t debounce_delay;
++	ktime_t poll_time;
++	unsigned flags;
++};
++
++/* Directly connected inputs and outputs */
++
++enum gpio_event_direct_flags {
++	GPIOEDF_ACTIVE_HIGH         = 1U << 0,
++/*	GPIOEDF_USE_DOWN_IRQ        = 1U << 1, */
++/*	GPIOEDF_USE_IRQ             = (1U << 2) | GPIOIDF_USE_DOWN_IRQ, */
++	GPIOEDF_PRINT_KEYS          = 1U << 8,
++	GPIOEDF_PRINT_KEY_DEBOUNCE  = 1U << 9,
++	GPIOEDF_PRINT_KEY_UNSTABLE  = 1U << 10,
++};
++
++struct gpio_event_direct_entry {
++	uint32_t gpio:16;
++	uint32_t code:10;
++	uint32_t dev:6;
++};
++
++/* inputs */
++extern int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
++			struct gpio_event_info *info, void **data, int func);
++struct gpio_event_input_info {
++	/* initialize to gpio_event_input_func */
++	struct gpio_event_info info;
++	ktime_t debounce_time;
++	ktime_t poll_time;
++	uint16_t flags;
++	uint16_t type;
++	const struct gpio_event_direct_entry *keymap;
++	size_t keymap_size;
++};
++
++/* outputs */
++extern int gpio_event_output_func(struct gpio_event_input_devs *input_devs,
++			struct gpio_event_info *info, void **data, int func);
++extern int gpio_event_output_event(struct gpio_event_input_devs *input_devs,
++			struct gpio_event_info *info, void **data,
++			unsigned int dev, unsigned int type,
++			unsigned int code, int value);
++struct gpio_event_output_info {
++	/* initialize to gpio_event_output_func and gpio_event_output_event */
++	struct gpio_event_info info;
++	uint16_t flags;
++	uint16_t type;
++	const struct gpio_event_direct_entry *keymap;
++	size_t keymap_size;
++};
++
++
++/* axes */
++
++enum gpio_event_axis_flags {
++	GPIOEAF_PRINT_UNKNOWN_DIRECTION  = 1U << 16,
++	GPIOEAF_PRINT_RAW                = 1U << 17,
++	GPIOEAF_PRINT_EVENT              = 1U << 18,
++};
++
++extern int gpio_event_axis_func(struct gpio_event_input_devs *input_devs,
++			struct gpio_event_info *info, void **data, int func);
++struct gpio_event_axis_info {
++	/* initialize to gpio_event_axis_func */
++	struct gpio_event_info info;
++	uint8_t  count; /* number of gpios for this axis */
++	uint8_t  dev; /* device index when using multiple input devices */
++	uint8_t  type; /* EV_REL or EV_ABS */
++	uint16_t code;
++	uint16_t decoded_size;
++	uint16_t (*map)(struct gpio_event_axis_info *info, uint16_t in);
++	uint32_t *gpio;
++	uint32_t flags;
++};
++#define gpio_axis_2bit_gray_map gpio_axis_4bit_gray_map
++#define gpio_axis_3bit_gray_map gpio_axis_4bit_gray_map
++uint16_t gpio_axis_4bit_gray_map(
++			struct gpio_event_axis_info *info, uint16_t in);
++uint16_t gpio_axis_5bit_singletrack_map(
++			struct gpio_event_axis_info *info, uint16_t in);
++
++#endif
+diff -Naur include/linux/hid.h include/linux/hid.h
+--- include/linux/hid.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/hid.h	2014-08-31 12:21:39.150937814 -0300
+@@ -661,8 +661,8 @@
+ 	int (*input_mapped)(struct hid_device *hdev,
+ 			struct hid_input *hidinput, struct hid_field *field,
+ 			struct hid_usage *usage, unsigned long **bit, int *max);
+-	void (*input_configured)(struct hid_device *hdev,
+-				 struct hid_input *hidinput);
++	int (*input_configured)(struct hid_device *hdev,    
++				struct hid_input *hidinput);
+ 	void (*feature_mapping)(struct hid_device *hdev,
+ 			struct hid_field *field,
+ 			struct hid_usage *usage);
+diff -Naur include/linux/if_pppolac.h include/linux/if_pppolac.h
+--- include/linux/if_pppolac.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/if_pppolac.h	2014-08-31 12:21:38.042937949 -0300
+@@ -0,0 +1,23 @@
++/* include/linux/if_pppolac.h
++ *
++ * Header for PPP on L2TP Access Concentrator / PPPoLAC Socket (RFC 2661)
++ *
++ * Copyright (C) 2009 Google, Inc.
++ * Author: Chia-chi Yeh <chiachi@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __LINUX_IF_PPPOLAC_H
++#define __LINUX_IF_PPPOLAC_H
++
++#include <uapi/linux/if_pppolac.h>
++
++#endif /* __LINUX_IF_PPPOLAC_H */
+diff -Naur include/linux/if_pppopns.h include/linux/if_pppopns.h
+--- include/linux/if_pppopns.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/if_pppopns.h	2014-08-31 12:21:39.204937807 -0300
+@@ -0,0 +1,23 @@
++/* include/linux/if_pppopns.h
++ *
++ * Header for PPP on PPTP Network Server / PPPoPNS Socket (RFC 2637)
++ *
++ * Copyright (C) 2009 Google, Inc.
++ * Author: Chia-chi Yeh <chiachi@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __LINUX_IF_PPPOPNS_H
++#define __LINUX_IF_PPPOPNS_H
++
++#include <uapi/linux/if_pppopns.h>
++
++#endif /* __LINUX_IF_PPPOPNS_H */
+diff -Naur include/linux/if_pppox.h include/linux/if_pppox.h
+--- include/linux/if_pppox.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/if_pppox.h	2014-08-31 12:21:39.159937813 -0300
+@@ -41,6 +41,26 @@
+ 	u32 seq_sent, seq_recv;
+ 	int ppp_flags;
+ };
++
++
++struct pppolac_opt {                                                                          
++      __u32           local;                                                                  
++      __u32           remote;                                                                 
++      __u32           recv_sequence;                                                          
++      __u32           xmit_sequence;                                                          
++      atomic_t        sequencing;                                                             
++      int             (*backlog_rcv)(struct sock *sk_udp, struct sk_buff *skb);               
++};                                                                                            
++                                                                                              
++struct pppopns_opt {
++      __u16           local;
++      __u16           remote;
++      __u32           recv_sequence;
++      __u32           xmit_sequence;
++      void            (*data_ready)(struct sock *sk_raw, int length);
++      int             (*backlog_rcv)(struct sock *sk_raw, struct sk_buff *skb);
++};
++
+ #include <net/sock.h>
+ 
+ struct pppox_sock {
+@@ -51,6 +71,8 @@
+ 	union {
+ 		struct pppoe_opt pppoe;
+ 		struct pptp_opt  pptp;
++		struct pppolac_opt lac;
++		struct pppopns_opt pns;
+ 	} proto;
+ 	__be16			num;
+ };
+diff -Naur include/linux/kernel.h include/linux/kernel.h
+--- include/linux/kernel.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/kernel.h	2014-08-31 12:21:38.315937915 -0300
+@@ -850,4 +850,8 @@
+ 	 BUILD_BUG_ON_ZERO(((perms) >> 6) < (((perms) >> 3) & 7)) +	\
+ 	 BUILD_BUG_ON_ZERO((((perms) >> 3) & 7) < ((perms) & 7)) +	\
+ 	 (perms))
++
++/* To identify board information in panic logs, set this */
++extern char *mach_panic_string;	 
++	 
+ #endif
+diff -Naur include/linux/keychord.h include/linux/keychord.h
+--- include/linux/keychord.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/keychord.h	2014-08-31 12:21:39.520937769 -0300
+@@ -0,0 +1,23 @@
++/*
++ *  Key chord input driver
++ *
++ * Copyright (C) 2008 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++*/
++
++#ifndef __LINUX_KEYCHORD_H_
++#define __LINUX_KEYCHORD_H_
++
++#include <uapi/linux/keychord.h>
++
++#endif	/* __LINUX_KEYCHORD_H_ */
+diff -Naur include/linux/keyreset.h include/linux/keyreset.h
+--- include/linux/keyreset.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/keyreset.h	2014-08-31 12:21:38.083937944 -0300
+@@ -0,0 +1,28 @@
++/*
++ * include/linux/keyreset.h - platform data structure for resetkeys driver
++ *
++ * Copyright (C) 2008 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _LINUX_KEYRESET_H
++#define _LINUX_KEYRESET_H
++
++#define KEYRESET_NAME "keyreset"
++
++struct keyreset_platform_data {
++	int (*reset_fn)(void);
++	int *keys_up;
++	int keys_down[]; /* 0 terminated */
++};
++
++#endif /* _LINUX_KEYRESET_H */
+diff -Naur include/linux/mm.h include/linux/mm.h
+--- include/linux/mm.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/mm.h	2014-08-31 12:21:38.240937925 -0300
+@@ -1064,6 +1064,8 @@
+ extern void show_free_areas(unsigned int flags);
+ extern bool skip_free_areas_node(unsigned int flags, int nid);
+ 
++void shmem_set_file(struct vm_area_struct *vma, struct file *file);
++
+ int shmem_zero_setup(struct vm_area_struct *);
+ #ifdef CONFIG_SHMEM
+ bool shmem_mapping(struct address_space *mapping);
+@@ -1767,7 +1769,7 @@
+ extern struct vm_area_struct *vma_merge(struct mm_struct *,
+ 	struct vm_area_struct *prev, unsigned long addr, unsigned long end,
+ 	unsigned long vm_flags, struct anon_vma *, struct file *, pgoff_t,
+-	struct mempolicy *);
++	struct mempolicy *, const char __user *);
+ extern struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *);
+ extern int split_vma(struct mm_struct *,
+ 	struct vm_area_struct *, unsigned long addr, int new_below);
+diff -Naur include/linux/mm_types.h include/linux/mm_types.h
+--- include/linux/mm_types.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/mm_types.h	2014-08-31 12:21:39.483937773 -0300
+@@ -274,6 +274,10 @@
+ 	 * For areas with an address space and backing store,
+ 	 * linkage into the address_space->i_mmap interval tree, or
+ 	 * linkage of vma in the address_space->i_mmap_nonlinear list.
++	 *
++	 * For private anonymous mappings, a pointer to a null terminated string
++	 * in the user process containing the name given to the vma, or NULL
++	 * if unnamed.
+ 	 */
+ 	union {
+ 		struct {
+@@ -281,6 +285,7 @@
+ 			unsigned long rb_subtree_last;
+ 		} linear;
+ 		struct list_head nonlinear;
++		const char __user *anon_name;
+ 	} shared;
+ 
+ 	/*
+@@ -516,4 +521,13 @@
+ 	struct page **pages;
+ };
+ 
++/* Return the name for an anonymous mapping or NULL for a file-backed mapping */
++static inline const char __user *vma_get_anon_name(struct vm_area_struct *vma)
++{
++      if (vma->vm_file)
++              return NULL;
++
++      return vma->shared.anon_name;
++}
++
+ #endif /* _LINUX_MM_TYPES_H */
+diff -Naur include/linux/mmc/host.h include/linux/mmc/host.h
+--- include/linux/mmc/host.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/mmc/host.h	2014-08-31 12:21:38.351937911 -0300
+@@ -15,6 +15,7 @@
+ #include <linux/sched.h>
+ #include <linux/device.h>
+ #include <linux/fault-inject.h>
++#include <linux/wakelock.h>
+ 
+ #include <linux/mmc/core.h>
+ #include <linux/mmc/card.h>
+@@ -332,12 +333,17 @@
+ 	int			claim_cnt;	/* "claim" nesting count */
+ 
+ 	struct delayed_work	detect;
++	struct wake_lock        detect_wake_lock;
+ 	int			detect_change;	/* card detect flag */
+ 	struct mmc_slot		slot;
+ 
+ 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
+ 	unsigned int		bus_refs;	/* reference counter */
+ 
++	      unsigned int            bus_resume_flags;
++	#define MMC_BUSRESUME_MANUAL_RESUME   (1 << 0)
++	#define MMC_BUSRESUME_NEEDS_RESUME    (1 << 1)
++	
+ 	unsigned int		sdio_irqs;
+ 	struct task_struct	*sdio_irq_thread;
+ 	bool			sdio_irq_pending;
+@@ -364,6 +370,15 @@
+ 	unsigned int		actual_clock;	/* Actual HC clock rate */
+ 
+ 	unsigned int		slotno;	/* used for sdio acpi binding */
++	
++	#ifdef CONFIG_MMC_EMBEDDED_SDIO
++	struct {
++		struct sdio_cis                 *cis;
++		struct sdio_cccr                *cccr;
++		struct sdio_embedded_func       *funcs;
++		int                             num_funcs;
++	} embedded_sdio_data;
++	#endif
+ 
+ 	unsigned long		private[0] ____cacheline_aligned;
+ };
+@@ -374,6 +389,16 @@
+ void mmc_free_host(struct mmc_host *);
+ int mmc_of_parse(struct mmc_host *host);
+ 
++
++#ifdef CONFIG_MMC_EMBEDDED_SDIO
++extern void mmc_set_embedded_sdio_data(struct mmc_host *host,
++                                     struct sdio_cis *cis,
++                                     struct sdio_cccr *cccr,
++                                     struct sdio_embedded_func *funcs,
++                                     int num_funcs);
++#endif
++
++
+ static inline void *mmc_priv(struct mmc_host *host)
+ {
+ 	return (void *)host->private;
+@@ -385,6 +410,20 @@
+ #define mmc_classdev(x)	(&(x)->class_dev)
+ #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
+ 
++#define mmc_bus_needs_resume(host) ((host)->bus_resume_flags & MMC_BUSRESUME_NEEDS_RESUME)
++#define mmc_bus_manual_resume(host) ((host)->bus_resume_flags & MMC_BUSRESUME_MANUAL_RESUME)
++
++static inline void mmc_set_bus_resume_policy(struct mmc_host *host, int manual)
++{
++      if (manual)
++              host->bus_resume_flags |= MMC_BUSRESUME_MANUAL_RESUME;
++      else
++              host->bus_resume_flags &= ~MMC_BUSRESUME_MANUAL_RESUME;
++}
++
++extern int mmc_resume_bus(struct mmc_host *host);
++
++// 
+ int mmc_power_save_host(struct mmc_host *host);
+ int mmc_power_restore_host(struct mmc_host *host);
+ 
+diff -Naur include/linux/mmc/pm.h include/linux/mmc/pm.h
+--- include/linux/mmc/pm.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/mmc/pm.h	2014-08-31 12:21:38.348937911 -0300
+@@ -27,4 +27,6 @@
+ #define MMC_PM_KEEP_POWER	(1 << 0)	/* preserve card power during suspend */
+ #define MMC_PM_WAKE_SDIO_IRQ	(1 << 1)	/* wake up host system on SDIO IRQ assertion */
+ 
++#define MMC_PM_IGNORE_PM_NOTIFY       (1 << 2)        /* ignore mmc pm notify */
++
+ #endif /* LINUX_MMC_PM_H */
+diff -Naur include/linux/mmc/sdio_func.h include/linux/mmc/sdio_func.h
+--- include/linux/mmc/sdio_func.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/mmc/sdio_func.h	2014-08-31 12:21:38.336937913 -0300
+@@ -22,6 +22,17 @@
+ 
+ typedef void (sdio_irq_handler_t)(struct sdio_func *);
+ 
++
++
++
++/*
++ * Structure used to hold embedded SDIO device data from platform layer
++ */
++struct sdio_embedded_func {
++      uint8_t f_class;
++      uint32_t f_maxblksize;
++};
++
+ /*
+  * SDIO function CIS tuple (unknown to the core)
+  */
+@@ -130,6 +141,8 @@
+ extern unsigned int sdio_align_size(struct sdio_func *func, unsigned int sz);
+ 
+ extern u8 sdio_readb(struct sdio_func *func, unsigned int addr, int *err_ret);
++extern u8 sdio_readb_ext(struct sdio_func *func, unsigned int addr, int *err_ret,
++      unsigned in);
+ extern u16 sdio_readw(struct sdio_func *func, unsigned int addr, int *err_ret);
+ extern u32 sdio_readl(struct sdio_func *func, unsigned int addr, int *err_ret);
+ 
+diff -Naur include/linux/netfilter/xt_qtaguid.h include/linux/netfilter/xt_qtaguid.h
+--- include/linux/netfilter/xt_qtaguid.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/netfilter/xt_qtaguid.h	2014-08-31 12:21:38.807937855 -0300
+@@ -0,0 +1,13 @@
++#ifndef _XT_QTAGUID_MATCH_H
++#define _XT_QTAGUID_MATCH_H
++
++/* For now we just replace the xt_owner.
++ * FIXME: make iptables aware of qtaguid. */
++#include <linux/netfilter/xt_owner.h>
++
++#define XT_QTAGUID_UID    XT_OWNER_UID
++#define XT_QTAGUID_GID    XT_OWNER_GID
++#define XT_QTAGUID_SOCKET XT_OWNER_SOCKET
++#define xt_qtaguid_match_info xt_owner_match_info
++
++#endif /* _XT_QTAGUID_MATCH_H */
+diff -Naur include/linux/netfilter/xt_quota2.h include/linux/netfilter/xt_quota2.h
+--- include/linux/netfilter/xt_quota2.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/netfilter/xt_quota2.h	2014-08-31 12:21:38.746937863 -0300
+@@ -0,0 +1,25 @@
++#ifndef _XT_QUOTA_H
++#define _XT_QUOTA_H
++
++enum xt_quota_flags {
++	XT_QUOTA_INVERT    = 1 << 0,
++	XT_QUOTA_GROW      = 1 << 1,
++	XT_QUOTA_PACKET    = 1 << 2,
++	XT_QUOTA_NO_CHANGE = 1 << 3,
++	XT_QUOTA_MASK      = 0x0F,
++};
++
++struct xt_quota_counter;
++
++struct xt_quota_mtinfo2 {
++	char name[15];
++	u_int8_t flags;
++
++	/* Comparison-invariant */
++	aligned_u64 quota;
++
++	/* Used internally by the kernel */
++	struct xt_quota_counter *master __attribute__((aligned(8)));
++};
++
++#endif /* _XT_QUOTA_H */
+diff -Naur include/linux/nmi.h include/linux/nmi.h
+--- include/linux/nmi.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/nmi.h	2014-08-31 12:21:39.505937770 -0300
+@@ -14,8 +14,11 @@
+  * may be used to reset the timeout - for code which intentionally
+  * disables interrupts for a long time. This call is stateless.
+  */
+-#if defined(CONFIG_HAVE_NMI_WATCHDOG) || defined(CONFIG_HARDLOCKUP_DETECTOR)
++#if defined(CONFIG_HAVE_NMI_WATCHDOG) || defined(CONFIG_HARDLOCKUP_DETECTOR_NMI)
+ #include <asm/nmi.h>
++#endif
++
++#if defined(CONFIG_HAVE_NMI_WATCHDOG) || defined(CONFIG_HARDLOCKUP_DETECTOR)
+ extern void touch_nmi_watchdog(void);
+ #else
+ static inline void touch_nmi_watchdog(void)
+diff -Naur include/linux/platform_data/ds2482.h include/linux/platform_data/ds2482.h
+--- include/linux/platform_data/ds2482.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/platform_data/ds2482.h	2014-08-31 12:21:38.479937895 -0300
+@@ -0,0 +1,21 @@
++/*
++ * Copyright (C) 2012 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __PLATFORM_DATA_DS2482__
++#define __PLATFORM_DATA_DS2482__
++
++struct ds2482_platform_data {
++	int		slpz_gpio;
++};
++
++#endif /* __PLATFORM_DATA_DS2482__ */
+diff -Naur include/linux/power_supply.h include/linux/power_supply.h
+--- include/linux/power_supply.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/power_supply.h	2014-08-31 12:21:39.268937799 -0300
+@@ -142,6 +142,10 @@
+ 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
+ 	POWER_SUPPLY_PROP_TYPE, /* use power_supply.type instead */
+ 	POWER_SUPPLY_PROP_SCOPE,
++	/* Local extensions */
++	POWER_SUPPLY_PROP_USB_HC,
++	POWER_SUPPLY_PROP_USB_OTG,
++	POWER_SUPPLY_PROP_CHARGE_ENABLED,
+ 	/* Properties of type `const char *' */
+ 	POWER_SUPPLY_PROP_MODEL_NAME,
+ 	POWER_SUPPLY_PROP_MANUFACTURER,
+diff -Naur include/linux/sched.h include/linux/sched.h
+--- include/linux/sched.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/sched.h	2014-08-31 12:21:39.253937801 -0300
+@@ -1889,6 +1889,9 @@
+ extern void task_cputime_adjusted(struct task_struct *p, cputime_t *ut, cputime_t *st);
+ extern void thread_group_cputime_adjusted(struct task_struct *p, cputime_t *ut, cputime_t *st);
+ 
++extern int task_free_register(struct notifier_block *n);
++extern int task_free_unregister(struct notifier_block *n);
++
+ /*
+  * Per process flags
+  */
+diff -Naur include/linux/security.h include/linux/security.h
+--- include/linux/security.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/security.h	2014-08-31 12:21:38.574937884 -0300
+@@ -1431,6 +1431,11 @@
+  */
+ struct security_operations {
+ 	char name[SECURITY_NAME_MAX + 1];
++	
++	int (*binder_set_context_mgr) (struct task_struct *mgr);
++	int (*binder_transaction) (struct task_struct *from, struct task_struct *to);
++	int (*binder_transfer_binder) (struct task_struct *from, struct task_struct *to);
++	int (*binder_transfer_file) (struct task_struct *from, struct task_struct *to, struct file *file);
+ 
+ 	int (*ptrace_access_check) (struct task_struct *child, unsigned int mode);
+ 	int (*ptrace_traceme) (struct task_struct *parent);
+@@ -1729,6 +1734,11 @@
+ 
+ 
+ /* Security operations */
++int security_binder_set_context_mgr(struct task_struct *mgr);
++int security_binder_transaction(struct task_struct *from, struct task_struct *to);
++int security_binder_transfer_binder(struct task_struct *from, struct task_struct *to);
++int security_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file);
++
+ int security_ptrace_access_check(struct task_struct *child, unsigned int mode);
+ int security_ptrace_traceme(struct task_struct *parent);
+ int security_capget(struct task_struct *target,
+@@ -1913,9 +1923,30 @@
+ 
+ static inline int security_init(void)
+ {
++      return 0;
++}
++
++static inline int security_binder_set_context_mgr(struct task_struct *mgr)
++{
++      return 0;
++}
++
++static inline int security_binder_transaction(struct task_struct *from, struct task_struct *to)
++{
++      return 0;
++}
++
++static inline int security_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
++{
++      return 0;
++}
++
++static inline int security_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
++{
+ 	return 0;
+ }
+ 
++
+ static inline int security_ptrace_access_check(struct task_struct *child,
+ 					     unsigned int mode)
+ {
+diff -Naur include/linux/serial_core.h include/linux/serial_core.h
+--- include/linux/serial_core.h	2014-08-03 19:25:02.000000000 -0300
++++ include/linux/serial_core.h	2014-08-31 12:21:38.081937944 -0300
+@@ -67,6 +67,7 @@
+ 	void		(*pm)(struct uart_port *, unsigned int state,
+ 			      unsigned int oldstate);
+ 
++	void            (*wake_peer)(struct uart_port *);
+ 	/*
+ 	 * Return a string describing the type of the port
+ 	 */
+diff -Naur include/linux/switch.h include/linux/switch.h
+--- include/linux/switch.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/switch.h	2014-08-31 12:21:38.808937855 -0300
+@@ -0,0 +1,53 @@
++/*
++ *  Switch class driver
++ *
++ * Copyright (C) 2008 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++*/
++
++#ifndef __LINUX_SWITCH_H__
++#define __LINUX_SWITCH_H__
++
++struct switch_dev {
++	const char	*name;
++	struct device	*dev;
++	int		index;
++	int		state;
++
++	ssize_t	(*print_name)(struct switch_dev *sdev, char *buf);
++	ssize_t	(*print_state)(struct switch_dev *sdev, char *buf);
++};
++
++struct gpio_switch_platform_data {
++	const char *name;
++	unsigned 	gpio;
++
++	/* if NULL, switch_dev.name will be printed */
++	const char *name_on;
++	const char *name_off;
++	/* if NULL, "0" or "1" will be printed */
++	const char *state_on;
++	const char *state_off;
++};
++
++extern int switch_dev_register(struct switch_dev *sdev);
++extern void switch_dev_unregister(struct switch_dev *sdev);
++
++static inline int switch_get_state(struct switch_dev *sdev)
++{
++	return sdev->state;
++}
++
++extern void switch_set_state(struct switch_dev *sdev, int state);
++
++#endif /* __LINUX_SWITCH_H__ */
+diff -Naur include/linux/uid_stat.h include/linux/uid_stat.h
+--- include/linux/uid_stat.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/uid_stat.h	2014-08-31 12:21:39.429937780 -0300
+@@ -0,0 +1,29 @@
++/* include/linux/uid_stat.h
++ *
++ * Copyright (C) 2008-2009 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef __uid_stat_h
++#define __uid_stat_h
++
++/* Contains definitions for resource tracking per uid. */
++
++#ifdef CONFIG_UID_STAT
++int uid_stat_tcp_snd(kuid_t uid, int size);
++int uid_stat_tcp_rcv(kuid_t uid, int size);
++#else
++#define uid_stat_tcp_snd(uid, size) do {} while (0);
++#define uid_stat_tcp_rcv(uid, size) do {} while (0);
++#endif
++
++#endif /* _LINUX_UID_STAT_H */
+diff -Naur include/linux/usb/f_accessory.h include/linux/usb/f_accessory.h
+--- include/linux/usb/f_accessory.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/usb/f_accessory.h	2014-08-31 12:21:38.915937842 -0300
+@@ -0,0 +1,23 @@
++/*
++ * Gadget Function Driver for Android USB accessories
++ *
++ * Copyright (C) 2011 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef __LINUX_USB_F_ACCESSORY_H
++#define __LINUX_USB_F_ACCESSORY_H
++
++#include <uapi/linux/usb/f_accessory.h>
++
++#endif /* __LINUX_USB_F_ACCESSORY_H */
+diff -Naur include/linux/usb/f_mtp.h include/linux/usb/f_mtp.h
+--- include/linux/usb/f_mtp.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/usb/f_mtp.h	2014-08-31 12:21:38.923937841 -0300
+@@ -0,0 +1,23 @@
++/*
++ * Gadget Function Driver for MTP
++ *
++ * Copyright (C) 2010 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef __LINUX_USB_F_MTP_H
++#define __LINUX_USB_F_MTP_H
++
++#include <uapi/linux/usb/f_mtp.h>
++
++#endif /* __LINUX_USB_F_MTP_H */
+diff -Naur include/linux/wakelock.h include/linux/wakelock.h
+--- include/linux/wakelock.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/wakelock.h	2014-08-31 12:21:38.117937940 -0300
+@@ -0,0 +1,67 @@
++/* include/linux/wakelock.h
++ *
++ * Copyright (C) 2007-2012 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _LINUX_WAKELOCK_H
++#define _LINUX_WAKELOCK_H
++
++#include <linux/ktime.h>
++#include <linux/device.h>
++
++/* A wake_lock prevents the system from entering suspend or other low power
++ * states when active. If the type is set to WAKE_LOCK_SUSPEND, the wake_lock
++ * prevents a full system suspend.
++ */
++
++enum {
++	WAKE_LOCK_SUSPEND, /* Prevent suspend */
++	WAKE_LOCK_TYPE_COUNT
++};
++
++struct wake_lock {
++	struct wakeup_source ws;
++};
++
++static inline void wake_lock_init(struct wake_lock *lock, int type,
++				  const char *name)
++{
++	wakeup_source_init(&lock->ws, name);
++}
++
++static inline void wake_lock_destroy(struct wake_lock *lock)
++{
++	wakeup_source_trash(&lock->ws);
++}
++
++static inline void wake_lock(struct wake_lock *lock)
++{
++	__pm_stay_awake(&lock->ws);
++}
++
++static inline void wake_lock_timeout(struct wake_lock *lock, long timeout)
++{
++	__pm_wakeup_event(&lock->ws, jiffies_to_msecs(timeout));
++}
++
++static inline void wake_unlock(struct wake_lock *lock)
++{
++	__pm_relax(&lock->ws);
++}
++
++static inline int wake_lock_active(struct wake_lock *lock)
++{
++	return lock->ws.active;
++}
++
++#endif
+diff -Naur include/linux/wakeup_reason.h include/linux/wakeup_reason.h
+--- include/linux/wakeup_reason.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/wakeup_reason.h	2014-08-31 12:21:39.069937824 -0300
+@@ -0,0 +1,23 @@
++/*
++ * include/linux/wakeup_reason.h
++ *
++ * Logs the reason which caused the kernel to resume
++ * from the suspend mode.
++ *
++ * Copyright (C) 2014 Google, Inc.
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _LINUX_WAKEUP_REASON_H
++#define _LINUX_WAKEUP_REASON_H
++
++void log_wakeup_reason(int irq);
++
++#endif /* _LINUX_WAKEUP_REASON_H */
+diff -Naur include/linux/wifi_tiwlan.h include/linux/wifi_tiwlan.h
+--- include/linux/wifi_tiwlan.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/wifi_tiwlan.h	2014-08-31 12:21:38.623937878 -0300
+@@ -0,0 +1,27 @@
++/* include/linux/wifi_tiwlan.h
++ *
++ * Copyright (C) 2008 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++#ifndef _LINUX_WIFI_TIWLAN_H_
++#define _LINUX_WIFI_TIWLAN_H_
++
++#include <linux/wlan_plat.h>
++
++#define WMPA_NUMBER_OF_SECTIONS	3
++#define WMPA_NUMBER_OF_BUFFERS	160
++#define WMPA_SECTION_HEADER	24
++#define WMPA_SECTION_SIZE_0	(WMPA_NUMBER_OF_BUFFERS * 64)
++#define WMPA_SECTION_SIZE_1	(WMPA_NUMBER_OF_BUFFERS * 256)
++#define WMPA_SECTION_SIZE_2	(WMPA_NUMBER_OF_BUFFERS * 2048)
++
++#endif
+diff -Naur include/linux/wlan_plat.h include/linux/wlan_plat.h
+--- include/linux/wlan_plat.h	1969-12-31 21:00:00.000000000 -0300
++++ include/linux/wlan_plat.h	2014-08-31 12:21:39.525937768 -0300
+@@ -0,0 +1,27 @@
++/* include/linux/wlan_plat.h
++ *
++ * Copyright (C) 2010 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++#ifndef _LINUX_WLAN_PLAT_H_
++#define _LINUX_WLAN_PLAT_H_
++
++struct wifi_platform_data {
++	int (*set_power)(int val);
++	int (*set_reset)(int val);
++	int (*set_carddetect)(int val);
++	void *(*mem_prealloc)(int section, unsigned long size);
++	int (*get_mac_addr)(unsigned char *buf);
++	void *(*get_country_code)(char *ccode);
++};
++
++#endif
+diff -Naur include/net/activity_stats.h include/net/activity_stats.h
+--- include/net/activity_stats.h	1969-12-31 21:00:00.000000000 -0300
++++ include/net/activity_stats.h	2014-08-31 12:21:40.828937609 -0300
+@@ -0,0 +1,25 @@
++/*
++ * Copyright (C) 2010 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * Author: Mike Chan (mike@android.com)
++ */
++
++#ifndef __activity_stats_h
++#define __activity_stats_h
++
++#ifdef CONFIG_NET_ACTIVITY_STATS
++void activity_stats_update(void);
++#else
++#define activity_stats_update(void) {}
++#endif
++
++#endif /* _NET_ACTIVITY_STATS_H */
+diff -Naur include/net/tcp.h include/net/tcp.h
+--- include/net/tcp.h	2014-08-03 19:25:02.000000000 -0300
++++ include/net/tcp.h	2014-08-31 12:21:40.784937614 -0300
+@@ -279,6 +279,8 @@
+ extern int sysctl_tcp_min_tso_segs;
+ extern int sysctl_tcp_autocorking;
+ 
++extern int sysctl_tcp_default_init_rwnd;
++
+ extern atomic_long_t tcp_memory_allocated;
+ extern struct percpu_counter tcp_sockets_allocated;
+ extern int tcp_memory_pressure;
+@@ -1580,6 +1582,8 @@
+ 	return notsent_bytes < tcp_notsent_lowat(tp);
+ }
+ 
++extern int tcp_nuke_addr(struct net *net, struct sockaddr *addr);
++
+ #ifdef CONFIG_PROC_FS
+ int tcp4_proc_init(void);
+ void tcp4_proc_exit(void);
+diff -Naur include/trace/events/cpufreq_interactive.h include/trace/events/cpufreq_interactive.h
+--- include/trace/events/cpufreq_interactive.h	1969-12-31 21:00:00.000000000 -0300
++++ include/trace/events/cpufreq_interactive.h	2014-08-31 12:21:40.745937619 -0300
+@@ -0,0 +1,112 @@
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM cpufreq_interactive
++
++#if !defined(_TRACE_CPUFREQ_INTERACTIVE_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_CPUFREQ_INTERACTIVE_H
++
++#include <linux/tracepoint.h>
++
++DECLARE_EVENT_CLASS(set,
++	TP_PROTO(u32 cpu_id, unsigned long targfreq,
++	         unsigned long actualfreq),
++	TP_ARGS(cpu_id, targfreq, actualfreq),
++
++	TP_STRUCT__entry(
++	    __field(          u32, cpu_id    )
++	    __field(unsigned long, targfreq   )
++	    __field(unsigned long, actualfreq )
++	   ),
++
++	TP_fast_assign(
++	    __entry->cpu_id = (u32) cpu_id;
++	    __entry->targfreq = targfreq;
++	    __entry->actualfreq = actualfreq;
++	),
++
++	TP_printk("cpu=%u targ=%lu actual=%lu",
++	      __entry->cpu_id, __entry->targfreq,
++	      __entry->actualfreq)
++);
++
++DEFINE_EVENT(set, cpufreq_interactive_setspeed,
++	TP_PROTO(u32 cpu_id, unsigned long targfreq,
++	     unsigned long actualfreq),
++	TP_ARGS(cpu_id, targfreq, actualfreq)
++);
++
++DECLARE_EVENT_CLASS(loadeval,
++	    TP_PROTO(unsigned long cpu_id, unsigned long load,
++		     unsigned long curtarg, unsigned long curactual,
++		     unsigned long newtarg),
++		    TP_ARGS(cpu_id, load, curtarg, curactual, newtarg),
++
++	    TP_STRUCT__entry(
++		    __field(unsigned long, cpu_id    )
++		    __field(unsigned long, load      )
++		    __field(unsigned long, curtarg   )
++		    __field(unsigned long, curactual )
++		    __field(unsigned long, newtarg   )
++	    ),
++
++	    TP_fast_assign(
++		    __entry->cpu_id = cpu_id;
++		    __entry->load = load;
++		    __entry->curtarg = curtarg;
++		    __entry->curactual = curactual;
++		    __entry->newtarg = newtarg;
++	    ),
++
++	    TP_printk("cpu=%lu load=%lu cur=%lu actual=%lu targ=%lu",
++		      __entry->cpu_id, __entry->load, __entry->curtarg,
++		      __entry->curactual, __entry->newtarg)
++);
++
++DEFINE_EVENT(loadeval, cpufreq_interactive_target,
++	    TP_PROTO(unsigned long cpu_id, unsigned long load,
++		     unsigned long curtarg, unsigned long curactual,
++		     unsigned long newtarg),
++	    TP_ARGS(cpu_id, load, curtarg, curactual, newtarg)
++);
++
++DEFINE_EVENT(loadeval, cpufreq_interactive_already,
++	    TP_PROTO(unsigned long cpu_id, unsigned long load,
++		     unsigned long curtarg, unsigned long curactual,
++		     unsigned long newtarg),
++	    TP_ARGS(cpu_id, load, curtarg, curactual, newtarg)
++);
++
++DEFINE_EVENT(loadeval, cpufreq_interactive_notyet,
++	    TP_PROTO(unsigned long cpu_id, unsigned long load,
++		     unsigned long curtarg, unsigned long curactual,
++		     unsigned long newtarg),
++	    TP_ARGS(cpu_id, load, curtarg, curactual, newtarg)
++);
++
++TRACE_EVENT(cpufreq_interactive_boost,
++	    TP_PROTO(const char *s),
++	    TP_ARGS(s),
++	    TP_STRUCT__entry(
++		    __string(s, s)
++	    ),
++	    TP_fast_assign(
++		    __assign_str(s, s);
++	    ),
++	    TP_printk("%s", __get_str(s))
++);
++
++TRACE_EVENT(cpufreq_interactive_unboost,
++	    TP_PROTO(const char *s),
++	    TP_ARGS(s),
++	    TP_STRUCT__entry(
++		    __string(s, s)
++	    ),
++	    TP_fast_assign(
++		    __assign_str(s, s);
++	    ),
++	    TP_printk("%s", __get_str(s))
++);
++
++#endif /* _TRACE_CPUFREQ_INTERACTIVE_H */
++
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff -Naur include/trace/events/gpu.h include/trace/events/gpu.h
+--- include/trace/events/gpu.h	1969-12-31 21:00:00.000000000 -0300
++++ include/trace/events/gpu.h	2014-08-31 12:21:40.742937620 -0300
+@@ -0,0 +1,143 @@
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM gpu
++
++#if !defined(_TRACE_GPU_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_GPU_H
++
++#include <linux/tracepoint.h>
++#include <linux/time.h>
++
++#define show_secs_from_ns(ns) \
++	({ \
++		u64 t = ns + (NSEC_PER_USEC / 2); \
++		do_div(t, NSEC_PER_SEC); \
++		t; \
++	})
++
++#define show_usecs_from_ns(ns) \
++	({ \
++		u64 t = ns + (NSEC_PER_USEC / 2) ; \
++		u32 rem; \
++		do_div(t, NSEC_PER_USEC); \
++		rem = do_div(t, USEC_PER_SEC); \
++	})
++
++/*
++ * The gpu_sched_switch event indicates that a switch from one GPU context to
++ * another occurred on one of the GPU hardware blocks.
++ *
++ * The gpu_name argument identifies the GPU hardware block.  Each independently
++ * scheduled GPU hardware block should have a different name.  This may be used
++ * in different ways for different GPUs.  For example, if a GPU includes
++ * multiple processing cores it may use names "GPU 0", "GPU 1", etc.  If a GPU
++ * includes a separately scheduled 2D and 3D hardware block, it might use the
++ * names "2D" and "3D".
++ *
++ * The timestamp argument is the timestamp at which the switch occurred on the
++ * GPU. These timestamps are in units of nanoseconds and must use
++ * approximately the same time as sched_clock, though they need not come from
++ * any CPU clock. The timestamps for a single hardware block must be
++ * monotonically nondecreasing.  This means that if a variable compensation
++ * offset is used to translate from some other clock to the sched_clock, then
++ * care must be taken when increasing that offset, and doing so may result in
++ * multiple events with the same timestamp.
++ *
++ * The next_ctx_id argument identifies the next context that was running on
++ * the GPU hardware block.  A value of 0 indicates that the hardware block
++ * will be idle.
++ *
++ * The next_prio argument indicates the priority of the next context at the
++ * time of the event.  The exact numeric values may mean different things for
++ * different GPUs, but they should follow the rule that lower values indicate a
++ * higher priority.
++ *
++ * The next_job_id argument identifies the batch of work that the GPU will be
++ * working on.  This should correspond to a job_id that was previously traced
++ * as a gpu_job_enqueue event when the batch of work was created.
++ */
++TRACE_EVENT(gpu_sched_switch,
++
++	TP_PROTO(const char *gpu_name, u64 timestamp,
++		u32 next_ctx_id, s32 next_prio, u32 next_job_id),
++
++	TP_ARGS(gpu_name, timestamp, next_ctx_id, next_prio, next_job_id),
++
++	TP_STRUCT__entry(
++		__string(       gpu_name,       gpu_name        )
++		__field(        u64,            timestamp       )
++		__field(        u32,            next_ctx_id     )
++		__field(        s32,            next_prio       )
++		__field(        u32,            next_job_id     )
++	),
++
++	TP_fast_assign(
++		__assign_str(gpu_name, gpu_name);
++		__entry->timestamp = timestamp;
++		__entry->next_ctx_id = next_ctx_id;
++		__entry->next_prio = next_prio;
++		__entry->next_job_id = next_job_id;
++	),
++
++	TP_printk("gpu_name=%s ts=%llu.%06lu next_ctx_id=%lu next_prio=%ld "
++		"next_job_id=%lu",
++		__get_str(gpu_name),
++		(unsigned long long)show_secs_from_ns(__entry->timestamp),
++		(unsigned long)show_usecs_from_ns(__entry->timestamp),
++		(unsigned long)__entry->next_ctx_id,
++		(long)__entry->next_prio,
++		(unsigned long)__entry->next_job_id)
++);
++
++/*
++ * The gpu_job_enqueue event indicates that a batch of work has been queued up
++ * to be processed by the GPU.  This event is not intended to indicate that
++ * the batch of work has been submitted to the GPU hardware, but rather that
++ * it has been submitted to the GPU kernel driver.
++ *
++ * This event should be traced on the thread that initiated the work being
++ * queued.  For example, if a batch of work is submitted to the kernel by a
++ * userland thread, the event should be traced on that thread.
++ *
++ * The ctx_id field identifies the GPU context in which the batch of work
++ * being queued is to be run.
++ *
++ * The job_id field identifies the batch of work being queued within the given
++ * GPU context.  The first batch of work submitted for a given GPU context
++ * should have a job_id of 0, and each subsequent batch of work should
++ * increment the job_id by 1.
++ *
++ * The type field identifies the type of the job being enqueued.  The job
++ * types may be different for different GPU hardware.  For example, a GPU may
++ * differentiate between "2D", "3D", and "compute" jobs.
++ */
++TRACE_EVENT(gpu_job_enqueue,
++
++	TP_PROTO(u32 ctx_id, u32 job_id, const char *type),
++
++	TP_ARGS(ctx_id, job_id, type),
++
++	TP_STRUCT__entry(
++		__field(        u32,            ctx_id          )
++		__field(        u32,            job_id          )
++		__string(       type,           type            )
++	),
++
++	TP_fast_assign(
++		__entry->ctx_id = ctx_id;
++		__entry->job_id = job_id;
++		__assign_str(type, type);
++	),
++
++	TP_printk("ctx_id=%lu job_id=%lu type=%s",
++		(unsigned long)__entry->ctx_id,
++		(unsigned long)__entry->job_id,
++		__get_str(type))
++);
++
++#undef show_secs_from_ns
++#undef show_usecs_from_ns
++
++#endif /* _TRACE_GPU_H */
++
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff -Naur include/trace/events/mmc.h include/trace/events/mmc.h
+--- include/trace/events/mmc.h	1969-12-31 21:00:00.000000000 -0300
++++ include/trace/events/mmc.h	2014-08-31 12:21:40.755937618 -0300
+@@ -0,0 +1,91 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM mmc
++
++#if !defined(_TRACE_MMC_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_MMC_H
++
++#include <linux/tracepoint.h>
++#include <linux/mmc/mmc.h>
++#include <linux/mmc/core.h>
++
++/*
++ * Unconditional logging of mmc block erase operations,
++ * including cmd, address, size
++ */
++DECLARE_EVENT_CLASS(mmc_blk_erase_class,
++	TP_PROTO(unsigned int cmd, unsigned int addr, unsigned int size),
++	TP_ARGS(cmd, addr, size),
++	TP_STRUCT__entry(
++		__field(unsigned int, cmd)
++		__field(unsigned int, addr)
++		__field(unsigned int, size)
++	),
++	TP_fast_assign(
++		__entry->cmd = cmd;
++		__entry->addr = addr;
++		__entry->size = size;
++	),
++	TP_printk("cmd=%u,addr=0x%08x,size=0x%08x",
++		  __entry->cmd, __entry->addr, __entry->size)
++);
++
++DEFINE_EVENT(mmc_blk_erase_class, mmc_blk_erase_start,
++	TP_PROTO(unsigned int cmd, unsigned int addr, unsigned int size),
++	TP_ARGS(cmd, addr, size));
++
++DEFINE_EVENT(mmc_blk_erase_class, mmc_blk_erase_end,
++	TP_PROTO(unsigned int cmd, unsigned int addr, unsigned int size),
++	TP_ARGS(cmd, addr, size));
++
++/*
++ * Logging of start of read or write mmc block operation,
++ * including cmd, address, size
++ */
++DECLARE_EVENT_CLASS(mmc_blk_rw_class,
++	TP_PROTO(unsigned int cmd, unsigned int addr, struct mmc_data *data),
++	TP_ARGS(cmd, addr, data),
++	TP_STRUCT__entry(
++		__field(unsigned int, cmd)
++		__field(unsigned int, addr)
++		__field(unsigned int, size)
++	),
++	TP_fast_assign(
++		__entry->cmd = cmd;
++		__entry->addr = addr;
++		__entry->size = data->blocks;
++	),
++	TP_printk("cmd=%u,addr=0x%08x,size=0x%08x",
++		  __entry->cmd, __entry->addr, __entry->size)
++);
++
++DEFINE_EVENT_CONDITION(mmc_blk_rw_class, mmc_blk_rw_start,
++	TP_PROTO(unsigned int cmd, unsigned int addr, struct mmc_data *data),
++	TP_ARGS(cmd, addr, data),
++	TP_CONDITION(((cmd == MMC_READ_MULTIPLE_BLOCK) ||
++		      (cmd == MMC_WRITE_MULTIPLE_BLOCK)) &&
++		      data));
++
++DEFINE_EVENT_CONDITION(mmc_blk_rw_class, mmc_blk_rw_end,
++	TP_PROTO(unsigned int cmd, unsigned int addr, struct mmc_data *data),
++	TP_ARGS(cmd, addr, data),
++	TP_CONDITION(((cmd == MMC_READ_MULTIPLE_BLOCK) ||
++		      (cmd == MMC_WRITE_MULTIPLE_BLOCK)) &&
++		      data));
++#endif /* _TRACE_MMC_H */
++
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff -Naur include/trace/events/power.h include/trace/events/power.h
+--- include/trace/events/power.h	2014-08-03 19:25:02.000000000 -0300
++++ include/trace/events/power.h	2014-08-31 12:21:40.730937621 -0300
+@@ -264,6 +264,25 @@
+ 	TP_ARGS(name, state, cpu_id)
+ );
+ 
++TRACE_EVENT(clock_set_parent,
++
++      TP_PROTO(const char *name, const char *parent_name),
++
++      TP_ARGS(name, parent_name),
++
++      TP_STRUCT__entry(
++              __string(       name,           name            )
++              __string(       parent_name,    parent_name     )
++      ),
++
++      TP_fast_assign(
++              __assign_str(name, name);
++              __assign_str(parent_name, parent_name);
++      ),
++
++      TP_printk("%s parent=%s", __get_str(name), __get_str(parent_name))
++);
++
+ /*
+  * The power domain events are used for power domains transitions
+  */
+diff -Naur include/uapi/linux/if_pppolac.h include/uapi/linux/if_pppolac.h
+--- include/uapi/linux/if_pppolac.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/linux/if_pppolac.h	2014-08-31 12:21:39.713937745 -0300
+@@ -0,0 +1,33 @@
++/* include/uapi/linux/if_pppolac.h
++ *
++ * Header for PPP on L2TP Access Concentrator / PPPoLAC Socket (RFC 2661)
++ *
++ * Copyright (C) 2009 Google, Inc.
++ * Author: Chia-chi Yeh <chiachi@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _UAPI_LINUX_IF_PPPOLAC_H
++#define _UAPI_LINUX_IF_PPPOLAC_H
++
++#include <linux/socket.h>
++#include <linux/types.h>
++
++struct sockaddr_pppolac {
++	sa_family_t	sa_family;	/* AF_PPPOX */
++	unsigned int	sa_protocol;	/* PX_PROTO_OLAC */
++	int		udp_socket;
++	struct __attribute__((packed)) {
++		__u16	tunnel, session;
++	} local, remote;
++} __attribute__((packed));
++
++#endif /* _UAPI_LINUX_IF_PPPOLAC_H */
+diff -Naur include/uapi/linux/if_pppopns.h include/uapi/linux/if_pppopns.h
+--- include/uapi/linux/if_pppopns.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/linux/if_pppopns.h	2014-08-31 12:21:40.297937674 -0300
+@@ -0,0 +1,32 @@
++/* include/uapi/linux/if_pppopns.h
++ *
++ * Header for PPP on PPTP Network Server / PPPoPNS Socket (RFC 2637)
++ *
++ * Copyright (C) 2009 Google, Inc.
++ * Author: Chia-chi Yeh <chiachi@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _UAPI_LINUX_IF_PPPOPNS_H
++#define _UAPI_LINUX_IF_PPPOPNS_H
++
++#include <linux/socket.h>
++#include <linux/types.h>
++
++struct sockaddr_pppopns {
++	sa_family_t	sa_family;	/* AF_PPPOX */
++	unsigned int	sa_protocol;	/* PX_PROTO_OPNS */
++	int		tcp_socket;
++	__u16		local;
++	__u16		remote;
++} __attribute__((packed));
++
++#endif /* _UAPI_LINUX_IF_PPPOPNS_H */
+diff -Naur include/uapi/linux/if_pppox.h include/uapi/linux/if_pppox.h
+--- include/uapi/linux/if_pppox.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/if_pppox.h	2014-08-31 12:21:40.283937676 -0300
+@@ -23,6 +23,8 @@
+ #include <linux/socket.h>
+ #include <linux/if_ether.h>
+ #include <linux/if_pppol2tp.h>
++#include <linux/if_pppolac.h>
++#include <linux/if_pppopns.h>
+ 
+ /* For user-space programs to pick up these definitions
+  * which they wouldn't get otherwise without defining __KERNEL__
+@@ -56,7 +58,10 @@
+ #define PX_PROTO_OE    0 /* Currently just PPPoE */
+ #define PX_PROTO_OL2TP 1 /* Now L2TP also */
+ #define PX_PROTO_PPTP  2
+-#define PX_MAX_PROTO   3
++#define PX_PROTO_OLAC  3
++#define PX_PROTO_OPNS  4
++#define PX_MAX_PROTO   5
++
+ 
+ struct sockaddr_pppox {
+ 	__kernel_sa_family_t sa_family;       /* address family, AF_PPPOX */
+diff -Naur include/uapi/linux/input.h include/uapi/linux/input.h
+--- include/uapi/linux/input.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/input.h	2014-08-31 12:21:39.780937737 -0300
+@@ -152,7 +152,12 @@
+ #define EVIOCGEFFECTS		_IOR('E', 0x84, int)			/* Report number of effects playable at the same time */
+ 
+ #define EVIOCGRAB		_IOW('E', 0x90, int)			/* Grab/Release device */
+-#define EVIOCREVOKE		_IOW('E', 0x91, int)			/* Revoke device access */
++/* HACK: disable conflicting EVIOCREVOKE until Android userspace stops using EVIOCSSUSPENDBLOCK */
++/*#define EVIOCREVOKE         _IOW('E', 0x91, int)*/                  /* Revoke device access */
++
++#define EVIOCGSUSPENDBLOCK    _IOR('E', 0x91, int)                    /* get suspend block enable */
++#define EVIOCSSUSPENDBLOCK    _IOW('E', 0x91, int)                    /* set suspend block enable */
++
+ 
+ #define EVIOCSCLOCKID		_IOW('E', 0xa0, int)			/* Set clockid to be used for timestamps */
+ 
+diff -Naur include/uapi/linux/keychord.h include/uapi/linux/keychord.h
+--- include/uapi/linux/keychord.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/linux/keychord.h	2014-08-31 12:21:40.421937659 -0300
+@@ -0,0 +1,52 @@
++/*
++ *  Key chord input driver
++ *
++ * Copyright (C) 2008 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++*/
++
++#ifndef _UAPI_LINUX_KEYCHORD_H_
++#define _UAPI_LINUX_KEYCHORD_H_
++
++#include <linux/input.h>
++
++#define KEYCHORD_VERSION		1
++
++/*
++ * One or more input_keychord structs are written to /dev/keychord
++ * at once to specify the list of keychords to monitor.
++ * Reading /dev/keychord returns the id of a keychord when the
++ * keychord combination is pressed.  A keychord is signalled when
++ * all of the keys in the keycode list are in the pressed state.
++ * The order in which the keys are pressed does not matter.
++ * The keychord will not be signalled if keys not in the keycode
++ * list are pressed.
++ * Keychords will not be signalled on key release events.
++ */
++struct input_keychord {
++	/* should be KEYCHORD_VERSION */
++	__u16 version;
++	/*
++	 * client specified ID, returned from read()
++	 * when this keychord is pressed.
++	 */
++	__u16 id;
++
++	/* number of keycodes in this keychord */
++	__u16 count;
++
++	/* variable length array of keycodes */
++	__u16 keycodes[];
++};
++
++#endif	/* _UAPI_LINUX_KEYCHORD_H_ */
+diff -Naur include/uapi/linux/netfilter/xt_IDLETIMER.h include/uapi/linux/netfilter/xt_IDLETIMER.h
+--- include/uapi/linux/netfilter/xt_IDLETIMER.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/netfilter/xt_IDLETIMER.h	2014-08-31 12:21:40.113937696 -0300
+@@ -4,6 +4,7 @@
+  * Header file for Xtables timer target module.
+  *
+  * Copyright (C) 2004, 2010 Nokia Corporation
++ *
+  * Written by Timo Teras <ext-timo.teras@nokia.com>
+  *
+  * Converted to x_tables and forward-ported to 2.6.34
+@@ -32,12 +33,19 @@
+ #include <linux/types.h>
+ 
+ #define MAX_IDLETIMER_LABEL_SIZE 28
++#define NLMSG_MAX_SIZE 64
++
++#define NL_EVENT_TYPE_INACTIVE 0
++#define NL_EVENT_TYPE_ACTIVE 1
+ 
+ struct idletimer_tg_info {
+ 	__u32 timeout;
+ 
+ 	char label[MAX_IDLETIMER_LABEL_SIZE];
+ 
++	/* Use netlink messages for notification in addition to sysfs */
++	__u8 send_nl_msg;
++
+ 	/* for kernel module internal use only */
+ 	struct idletimer_tg *timer __attribute__((aligned(8)));
+ };
+diff -Naur include/uapi/linux/netfilter/xt_socket.h include/uapi/linux/netfilter/xt_socket.h
+--- include/uapi/linux/netfilter/xt_socket.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/netfilter/xt_socket.h	2014-08-31 12:21:40.102937698 -0300
+@@ -16,6 +16,13 @@
+ struct xt_socket_mtinfo2 {
+ 	__u8 flags;
+ };
++
++void xt_socket_put_sk(struct sock *sk);
++struct sock *xt_socket_get4_sk(const struct sk_buff *skb,
++                               struct xt_action_param *par);
++struct sock *xt_socket_get6_sk(const struct sk_buff *skb,
++                               struct xt_action_param *par);
++
+ #define XT_SOCKET_FLAGS_V2 (XT_SOCKET_TRANSPARENT | XT_SOCKET_NOWILDCARD)
+ 
+ #endif /* _XT_SOCKET_H */
+diff -Naur include/uapi/linux/prctl.h include/uapi/linux/prctl.h
+--- include/uapi/linux/prctl.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/prctl.h	2014-08-31 12:21:39.775937737 -0300
+@@ -152,4 +152,8 @@
+ #define PR_SET_THP_DISABLE	41
+ #define PR_GET_THP_DISABLE	42
+ 
++#define PR_SET_VMA            0x53564d41
++# define PR_SET_VMA_ANON_NAME         0
++
++
+ #endif /* _LINUX_PRCTL_H */
+diff -Naur include/uapi/linux/sockios.h include/uapi/linux/sockios.h
+--- include/uapi/linux/sockios.h	2014-08-03 19:25:02.000000000 -0300
++++ include/uapi/linux/sockios.h	2014-08-31 12:21:40.406937661 -0300
+@@ -65,6 +65,7 @@
+ #define SIOCDIFADDR	0x8936		/* delete PA address		*/
+ #define	SIOCSIFHWBROADCAST	0x8937	/* set hardware broadcast addr	*/
+ #define SIOCGIFCOUNT	0x8938		/* get number of devices */
++#define SIOCKILLADDR	0x8939		/* kill sockets with this local addr */
+ 
+ #define SIOCGIFBR	0x8940		/* Bridging support		*/
+ #define SIOCSIFBR	0x8941		/* Set bridging options 	*/
+diff -Naur include/uapi/linux/usb/f_accessory.h include/uapi/linux/usb/f_accessory.h
+--- include/uapi/linux/usb/f_accessory.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/linux/usb/f_accessory.h	2014-08-31 12:21:40.131937694 -0300
+@@ -0,0 +1,146 @@
++/*
++ * Gadget Function Driver for Android USB accessories
++ *
++ * Copyright (C) 2011 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _UAPI_LINUX_USB_F_ACCESSORY_H
++#define _UAPI_LINUX_USB_F_ACCESSORY_H
++
++/* Use Google Vendor ID when in accessory mode */
++#define USB_ACCESSORY_VENDOR_ID 0x18D1
++
++
++/* Product ID to use when in accessory mode */
++#define USB_ACCESSORY_PRODUCT_ID 0x2D00
++
++/* Product ID to use when in accessory mode and adb is enabled */
++#define USB_ACCESSORY_ADB_PRODUCT_ID 0x2D01
++
++/* Indexes for strings sent by the host via ACCESSORY_SEND_STRING */
++#define ACCESSORY_STRING_MANUFACTURER   0
++#define ACCESSORY_STRING_MODEL          1
++#define ACCESSORY_STRING_DESCRIPTION    2
++#define ACCESSORY_STRING_VERSION        3
++#define ACCESSORY_STRING_URI            4
++#define ACCESSORY_STRING_SERIAL         5
++
++/* Control request for retrieving device's protocol version
++ *
++ *	requestType:    USB_DIR_IN | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_GET_PROTOCOL
++ *	value:          0
++ *	index:          0
++ *	data            version number (16 bits little endian)
++ *                     1 for original accessory support
++ *                     2 adds HID and device to host audio support
++ */
++#define ACCESSORY_GET_PROTOCOL  51
++
++/* Control request for host to send a string to the device
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_SEND_STRING
++ *	value:          0
++ *	index:          string ID
++ *	data            zero terminated UTF8 string
++ *
++ *  The device can later retrieve these strings via the
++ *  ACCESSORY_GET_STRING_* ioctls
++ */
++#define ACCESSORY_SEND_STRING   52
++
++/* Control request for starting device in accessory mode.
++ * The host sends this after setting all its strings to the device.
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_START
++ *	value:          0
++ *	index:          0
++ *	data            none
++ */
++#define ACCESSORY_START         53
++
++/* Control request for registering a HID device.
++ * Upon registering, a unique ID is sent by the accessory in the
++ * value parameter. This ID will be used for future commands for
++ * the device
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_REGISTER_HID_DEVICE
++ *	value:          Accessory assigned ID for the HID device
++ *	index:          total length of the HID report descriptor
++ *	data            none
++ */
++#define ACCESSORY_REGISTER_HID         54
++
++/* Control request for unregistering a HID device.
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_REGISTER_HID
++ *	value:          Accessory assigned ID for the HID device
++ *	index:          0
++ *	data            none
++ */
++#define ACCESSORY_UNREGISTER_HID         55
++
++/* Control request for sending the HID report descriptor.
++ * If the HID descriptor is longer than the endpoint zero max packet size,
++ * the descriptor will be sent in multiple ACCESSORY_SET_HID_REPORT_DESC
++ * commands. The data for the descriptor must be sent sequentially
++ * if multiple packets are needed.
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_SET_HID_REPORT_DESC
++ *	value:          Accessory assigned ID for the HID device
++ *	index:          offset of data in descriptor
++ *                      (needed when HID descriptor is too big for one packet)
++ *	data            the HID report descriptor
++ */
++#define ACCESSORY_SET_HID_REPORT_DESC         56
++
++/* Control request for sending HID events.
++ *
++ *	requestType:    USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_SEND_HID_EVENT
++ *	value:          Accessory assigned ID for the HID device
++ *	index:          0
++ *	data            the HID report for the event
++ */
++#define ACCESSORY_SEND_HID_EVENT         57
++
++/* Control request for setting the audio mode.
++ *
++ *	requestType:	USB_DIR_OUT | USB_TYPE_VENDOR
++ *	request:        ACCESSORY_SET_AUDIO_MODE
++ *	value:          0 - no audio
++ *                     1 - device to host, 44100 16-bit stereo PCM
++ *	index:          0
++ *	data            none
++ */
++#define ACCESSORY_SET_AUDIO_MODE         58
++
++/* ioctls for retrieving strings set by the host */
++#define ACCESSORY_GET_STRING_MANUFACTURER   _IOW('M', 1, char[256])
++#define ACCESSORY_GET_STRING_MODEL          _IOW('M', 2, char[256])
++#define ACCESSORY_GET_STRING_DESCRIPTION    _IOW('M', 3, char[256])
++#define ACCESSORY_GET_STRING_VERSION        _IOW('M', 4, char[256])
++#define ACCESSORY_GET_STRING_URI            _IOW('M', 5, char[256])
++#define ACCESSORY_GET_STRING_SERIAL         _IOW('M', 6, char[256])
++/* returns 1 if there is a start request pending */
++#define ACCESSORY_IS_START_REQUESTED        _IO('M', 7)
++/* returns audio mode (set via the ACCESSORY_SET_AUDIO_MODE control request) */
++#define ACCESSORY_GET_AUDIO_MODE            _IO('M', 8)
++
++#endif /* _UAPI_LINUX_USB_F_ACCESSORY_H */
+diff -Naur include/uapi/linux/usb/f_mtp.h include/uapi/linux/usb/f_mtp.h
+--- include/uapi/linux/usb/f_mtp.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/linux/usb/f_mtp.h	2014-08-31 12:21:40.138937693 -0300
+@@ -0,0 +1,61 @@
++/*
++ * Gadget Function Driver for MTP
++ *
++ * Copyright (C) 2010 Google, Inc.
++ * Author: Mike Lockwood <lockwood@android.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _UAPI_LINUX_USB_F_MTP_H
++#define _UAPI_LINUX_USB_F_MTP_H
++
++#include <linux/ioctl.h>
++#include <linux/types.h>
++
++struct mtp_file_range {
++	/* file descriptor for file to transfer */
++	int			fd;
++	/* offset in file for start of transfer */
++	loff_t		offset;
++	/* number of bytes to transfer */
++	int64_t		length;
++	/* MTP command ID for data header,
++	 * used only for MTP_SEND_FILE_WITH_HEADER
++	 */
++	uint16_t	command;
++	/* MTP transaction ID for data header,
++	 * used only for MTP_SEND_FILE_WITH_HEADER
++	 */
++	uint32_t	transaction_id;
++};
++
++struct mtp_event {
++	/* size of the event */
++	size_t		length;
++	/* event data to send */
++	void		*data;
++};
++
++/* Sends the specified file range to the host */
++#define MTP_SEND_FILE              _IOW('M', 0, struct mtp_file_range)
++/* Receives data from the host and writes it to a file.
++ * The file is created if it does not exist.
++ */
++#define MTP_RECEIVE_FILE           _IOW('M', 1, struct mtp_file_range)
++/* Sends an event to the host via the interrupt endpoint */
++#define MTP_SEND_EVENT             _IOW('M', 3, struct mtp_event)
++/* Sends the specified file range to the host,
++ * with a 12 byte MTP data packet header at the beginning.
++ */
++#define MTP_SEND_FILE_WITH_HEADER  _IOW('M', 4, struct mtp_file_range)
++
++#endif /* _UAPI_LINUX_USB_F_MTP_H */
+diff -Naur include/uapi/video/adf.h include/uapi/video/adf.h
+--- include/uapi/video/adf.h	1969-12-31 21:00:00.000000000 -0300
++++ include/uapi/video/adf.h	2014-08-31 12:21:40.538937644 -0300
+@@ -0,0 +1,321 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _UAPI_VIDEO_ADF_H_
++#define _UAPI_VIDEO_ADF_H_
++
++#include <linux/ioctl.h>
++#include <linux/types.h>
++
++#include <drm/drm_fourcc.h>
++#include <drm/drm_mode.h>
++
++#define ADF_NAME_LEN 32
++#define ADF_MAX_CUSTOM_DATA_SIZE 4096
++
++enum adf_interface_type {
++	ADF_INTF_DSI = 0,
++	ADF_INTF_eDP = 1,
++	ADF_INTF_DPI = 2,
++	ADF_INTF_VGA = 3,
++	ADF_INTF_DVI = 4,
++	ADF_INTF_HDMI = 5,
++	ADF_INTF_MEMORY = 6,
++	ADF_INTF_TYPE_DEVICE_CUSTOM = 128,
++	ADF_INTF_TYPE_MAX = (~(__u32)0),
++};
++
++#define ADF_INTF_FLAG_PRIMARY (1 << 0)
++#define ADF_INTF_FLAG_EXTERNAL (1 << 1)
++
++enum adf_event_type {
++	ADF_EVENT_VSYNC = 0,
++	ADF_EVENT_HOTPLUG = 1,
++	ADF_EVENT_DEVICE_CUSTOM = 128,
++	ADF_EVENT_TYPE_MAX = 255,
++};
++
++/**
++ * struct adf_set_event - start or stop subscribing to ADF events
++ *
++ * @type: the type of event to (un)subscribe
++ * @enabled: subscribe or unsubscribe
++ *
++ * After subscribing to an event, userspace may poll() the ADF object's fd
++ * to wait for events or read() to consume the event's data.
++ *
++ * ADF reserves event types 0 to %ADF_EVENT_DEVICE_CUSTOM-1 for its own events.
++ * Devices may use event types %ADF_EVENT_DEVICE_CUSTOM to %ADF_EVENT_TYPE_MAX-1
++ * for driver-private events.
++ */
++struct adf_set_event {
++	__u8 type;
++	__u8 enabled;
++};
++
++/**
++ * struct adf_event - common header for ADF event data
++ *
++ * @type: event type
++ * @length: total size of event data, header inclusive
++ */
++struct adf_event {
++	__u8 type;
++	__u32 length;
++};
++
++/**
++ * struct adf_vsync_event - ADF vsync event
++ *
++ * @base: event header (see &struct adf_event)
++ * @timestamp: time of vsync event, in nanoseconds
++ */
++struct adf_vsync_event {
++	struct adf_event base;
++	__u64 timestamp;
++};
++
++/**
++ * struct adf_vsync_event - ADF display hotplug event
++ *
++ * @base: event header (see &struct adf_event)
++ * @connected: whether a display is now connected to the interface
++ */
++struct adf_hotplug_event {
++	struct adf_event base;
++	__u8 connected;
++};
++
++#define ADF_MAX_PLANES 4
++/**
++ * struct adf_buffer_config - description of buffer displayed by adf_post_config
++ *
++ * @overlay_engine: id of the target overlay engine
++ * @w: width of display region in pixels
++ * @h: height of display region in pixels
++ * @format: DRM-style fourcc, see drm_fourcc.h for standard formats
++ * @fd: dma_buf fd for each plane
++ * @offset: location of first pixel to scan out, in bytes
++ * @pitch: stride (i.e. length of a scanline including padding) in bytes
++ * @n_planes: number of planes in buffer
++ * @acquire_fence: sync_fence fd which will clear when the buffer is
++ *	ready for display, or <0 if the buffer is already ready
++ */
++struct adf_buffer_config {
++	__u32 overlay_engine;
++
++	__u32 w;
++	__u32 h;
++	__u32 format;
++
++	__s64 fd[ADF_MAX_PLANES];
++	__u32 offset[ADF_MAX_PLANES];
++	__u32 pitch[ADF_MAX_PLANES];
++	__u8 n_planes;
++
++	__s64 acquire_fence;
++};
++#define ADF_MAX_BUFFERS (4096 / sizeof(struct adf_buffer_config))
++
++/**
++ * struct adf_post_config - request to flip to a new set of buffers
++ *
++ * @n_interfaces: number of interfaces targeted by the flip (input)
++ * @interfaces: ids of interfaces targeted by the flip (input)
++ * @n_bufs: number of buffers displayed (input)
++ * @bufs: description of buffers displayed (input)
++ * @custom_data_size: size of driver-private data (input)
++ * @custom_data: driver-private data (input)
++ * @complete_fence: sync_fence fd which will clear when this
++ *	configuration has left the screen (output)
++ */
++struct adf_post_config {
++	size_t n_interfaces;
++	__u32 __user *interfaces;
++
++	size_t n_bufs;
++	struct adf_buffer_config __user *bufs;
++
++	size_t custom_data_size;
++	void __user *custom_data;
++
++	__s64 complete_fence;
++};
++#define ADF_MAX_INTERFACES (4096 / sizeof(__u32))
++
++/**
++ * struct adf_simple_buffer_allocate - request to allocate a "simple" buffer
++ *
++ * @w: width of buffer in pixels (input)
++ * @h: height of buffer in pixels (input)
++ * @format: DRM-style fourcc (input)
++ *
++ * @fd: dma_buf fd (output)
++ * @offset: location of first pixel, in bytes (output)
++ * @pitch: length of a scanline including padding, in bytes (output)
++ *
++ * Simple buffers are analogous to DRM's "dumb" buffers.  They have a single
++ * plane of linear RGB data which can be allocated and scanned out without
++ * any driver-private ioctls or data.
++ *
++ * @format must be a standard RGB format defined in drm_fourcc.h.
++ *
++ * ADF clients must NOT assume that an interface can scan out a simple buffer
++ * allocated by a different ADF interface, even if the two interfaces belong to
++ * the same ADF device.
++ */
++struct adf_simple_buffer_alloc {
++	__u16 w;
++	__u16 h;
++	__u32 format;
++
++	__s64 fd;
++	__u32 offset;
++	__u32 pitch;
++};
++
++/**
++ * struct adf_simple_post_config - request to flip to a single buffer without
++ * driver-private data
++ *
++ * @buf: description of buffer displayed (input)
++ * @complete_fence: sync_fence fd which will clear when this buffer has left the
++ * screen (output)
++ */
++struct adf_simple_post_config {
++	struct adf_buffer_config buf;
++	__s64 complete_fence;
++};
++
++/**
++ * struct adf_attachment_config - description of attachment between an overlay
++ * engine and an interface
++ *
++ * @overlay_engine: id of the overlay engine
++ * @interface: id of the interface
++ */
++struct adf_attachment_config {
++	__u32 overlay_engine;
++	__u32 interface;
++};
++
++/**
++ * struct adf_device_data - describes a display device
++ *
++ * @name: display device's name
++ * @n_attachments: the number of current attachments
++ * @attachments: list of current attachments
++ * @n_allowed_attachments: the number of allowed attachments
++ * @allowed_attachments: list of allowed attachments
++ * @custom_data_size: size of driver-private data
++ * @custom_data: driver-private data
++ */
++struct adf_device_data {
++	char name[ADF_NAME_LEN];
++
++	size_t n_attachments;
++	struct adf_attachment_config __user *attachments;
++
++	size_t n_allowed_attachments;
++	struct adf_attachment_config __user *allowed_attachments;
++
++	size_t custom_data_size;
++	void __user *custom_data;
++};
++#define ADF_MAX_ATTACHMENTS (4096 / sizeof(struct adf_attachment_config))
++
++/**
++ * struct adf_device_data - describes a display interface
++ *
++ * @name: display interface's name
++ * @type: interface type (see enum @adf_interface_type)
++ * @id: which interface of type @type;
++ *	e.g. interface DSI.1 -> @type=@ADF_INTF_TYPE_DSI, @id=1
++ * @flags: informational flags (bitmask of %ADF_INTF_FLAG_* values)
++ * @dpms_state: DPMS state (one of @DRM_MODE_DPMS_* defined in drm_mode.h)
++ * @hotplug_detect: whether a display is plugged in
++ * @width_mm: screen width in millimeters, or 0 if unknown
++ * @height_mm: screen height in millimeters, or 0 if unknown
++ * @current_mode: current display mode
++ * @n_available_modes: the number of hardware display modes
++ * @available_modes: list of hardware display modes
++ * @custom_data_size: size of driver-private data
++ * @custom_data: driver-private data
++ */
++struct adf_interface_data {
++	char name[ADF_NAME_LEN];
++
++	__u32 type;
++	__u32 id;
++	/* e.g. type=ADF_INTF_TYPE_DSI, id=1 => DSI.1 */
++	__u32 flags;
++
++	__u8 dpms_state;
++	__u8 hotplug_detect;
++	__u16 width_mm;
++	__u16 height_mm;
++
++	struct drm_mode_modeinfo current_mode;
++	size_t n_available_modes;
++	struct drm_mode_modeinfo __user *available_modes;
++
++	size_t custom_data_size;
++	void __user *custom_data;
++};
++#define ADF_MAX_MODES (4096 / sizeof(struct drm_mode_modeinfo))
++
++/**
++ * struct adf_overlay_engine_data - describes an overlay engine
++ *
++ * @name: overlay engine's name
++ * @n_supported_formats: number of supported formats
++ * @supported_formats: list of supported formats
++ * @custom_data_size: size of driver-private data
++ * @custom_data: driver-private data
++ */
++struct adf_overlay_engine_data {
++	char name[ADF_NAME_LEN];
++
++	size_t n_supported_formats;
++	__u32 __user *supported_formats;
++
++	size_t custom_data_size;
++	void __user *custom_data;
++};
++#define ADF_MAX_SUPPORTED_FORMATS (4096 / sizeof(__u32))
++
++#define ADF_IOCTL_TYPE		'D'
++#define ADF_IOCTL_NR_CUSTOM	128
++
++#define ADF_SET_EVENT		_IOW(ADF_IOCTL_TYPE, 0, struct adf_set_event)
++#define ADF_BLANK		_IOW(ADF_IOCTL_TYPE, 1, __u8)
++#define ADF_POST_CONFIG		_IOW(ADF_IOCTL_TYPE, 2, struct adf_post_config)
++#define ADF_SET_MODE		_IOW(ADF_IOCTL_TYPE, 3, \
++					struct drm_mode_modeinfo)
++#define ADF_GET_DEVICE_DATA	_IOR(ADF_IOCTL_TYPE, 4, struct adf_device_data)
++#define ADF_GET_INTERFACE_DATA	_IOR(ADF_IOCTL_TYPE, 5, \
++					struct adf_interface_data)
++#define ADF_GET_OVERLAY_ENGINE_DATA \
++				_IOR(ADF_IOCTL_TYPE, 6, \
++					struct adf_overlay_engine_data)
++#define ADF_SIMPLE_POST_CONFIG	_IOW(ADF_IOCTL_TYPE, 7, \
++					struct adf_simple_post_config)
++#define ADF_SIMPLE_BUFFER_ALLOC	_IOW(ADF_IOCTL_TYPE, 8, \
++					struct adf_simple_buffer_alloc)
++#define ADF_ATTACH		_IOW(ADF_IOCTL_TYPE, 9, \
++					struct adf_attachment_config)
++#define ADF_DETACH		_IOW(ADF_IOCTL_TYPE, 10, \
++					struct adf_attachment_config)
++
++#endif /* _UAPI_VIDEO_ADF_H_ */
+diff -Naur include/video/adf.h include/video/adf.h
+--- include/video/adf.h	1969-12-31 21:00:00.000000000 -0300
++++ include/video/adf.h	2014-08-31 12:21:40.686937626 -0300
+@@ -0,0 +1,484 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _VIDEO_ADF_H
++#define _VIDEO_ADF_H
++
++#include <linux/device.h>
++#include <linux/dma-buf.h>
++#include <linux/idr.h>
++#include <linux/kref.h>
++#include <linux/kthread.h>
++#include <linux/ktime.h>
++#include <linux/list.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/scatterlist.h>
++#include <linux/sched.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/workqueue.h>
++#include <uapi/video/adf.h>
++#include "sync.h"
++
++struct adf_obj;
++struct adf_obj_ops;
++struct adf_device;
++struct adf_device_ops;
++struct adf_interface;
++struct adf_interface_ops;
++struct adf_overlay_engine;
++struct adf_overlay_engine_ops;
++
++/**
++ * struct adf_buffer - buffer displayed by adf_post
++ *
++ * @overlay_engine: target overlay engine
++ * @w: width of display region in pixels
++ * @h: height of display region in pixels
++ * @format: DRM-style fourcc, see drm_fourcc.h for standard formats
++ * @dma_bufs: dma_buf for each plane
++ * @offset: location of first pixel to scan out, in bytes
++ * @pitch: length of a scanline including padding, in bytes
++ * @n_planes: number of planes in buffer
++ * @acquire_fence: sync_fence which will clear when the buffer is
++ *	ready for display
++ *
++ * &struct adf_buffer is the in-kernel counterpart to the userspace-facing
++ * &struct adf_buffer_config.
++ */
++struct adf_buffer {
++	struct adf_overlay_engine *overlay_engine;
++
++	u32 w;
++	u32 h;
++	u32 format;
++
++	struct dma_buf *dma_bufs[ADF_MAX_PLANES];
++	u32 offset[ADF_MAX_PLANES];
++	u32 pitch[ADF_MAX_PLANES];
++	u8 n_planes;
++
++	struct sync_fence *acquire_fence;
++};
++
++/**
++ * struct adf_buffer_mapping - state for mapping a &struct adf_buffer into the
++ * display device
++ *
++ * @attachments: dma-buf attachment for each plane
++ * @sg_tables: SG tables for each plane
++ */
++struct adf_buffer_mapping {
++	struct dma_buf_attachment *attachments[ADF_MAX_PLANES];
++	struct sg_table *sg_tables[ADF_MAX_PLANES];
++};
++
++/**
++ * struct adf_post - request to flip to a new set of buffers
++ *
++ * @n_bufs: number of buffers displayed
++ * @bufs: buffers displayed
++ * @mappings: in-device mapping state for each buffer
++ * @custom_data_size: size of driver-private data
++ * @custom_data: driver-private data
++ *
++ * &struct adf_post is the in-kernel counterpart to the userspace-facing
++ * &struct adf_post_config.
++ */
++struct adf_post {
++	size_t n_bufs;
++	struct adf_buffer *bufs;
++	struct adf_buffer_mapping *mappings;
++
++	size_t custom_data_size;
++	void *custom_data;
++};
++
++/**
++ * struct adf_attachment - description of attachment between an overlay engine
++ * and an interface
++ *
++ * @overlay_engine: the overlay engine
++ * @interface: the interface
++ *
++ * &struct adf_attachment is the in-kernel counterpart to the userspace-facing
++ * &struct adf_attachment_config.
++ */
++struct adf_attachment {
++	struct adf_overlay_engine *overlay_engine;
++	struct adf_interface *interface;
++};
++
++struct adf_pending_post {
++	struct list_head head;
++	struct adf_post config;
++	void *state;
++};
++
++enum adf_obj_type {
++	ADF_OBJ_OVERLAY_ENGINE = 0,
++	ADF_OBJ_INTERFACE = 1,
++	ADF_OBJ_DEVICE = 2,
++};
++
++/**
++ * struct adf_obj_ops - common ADF object implementation ops
++ *
++ * @open: handle opening the object's device node
++ * @release: handle releasing an open file
++ * @ioctl: handle custom ioctls
++ *
++ * @supports_event: return whether the object supports generating events of type
++ *	@type
++ * @set_event: enable or disable events of type @type
++ * @event_type_str: return a string representation of custom event @type
++ *	(@type >= %ADF_EVENT_DEVICE_CUSTOM).
++ *
++ * @custom_data: copy up to %ADF_MAX_CUSTOM_DATA_SIZE bytes of driver-private
++ *	data into @data (allocated by ADF) and return the number of copied bytes
++ *	in @size.  Return 0 on success or an error code (<0) on failure.
++ */
++struct adf_obj_ops {
++	/* optional */
++	int (*open)(struct adf_obj *obj, struct inode *inode,
++			struct file *file);
++	/* optional */
++	void (*release)(struct adf_obj *obj, struct inode *inode,
++			struct file *file);
++	/* optional */
++	long (*ioctl)(struct adf_obj *obj, unsigned int cmd, unsigned long arg);
++
++	/* optional */
++	bool (*supports_event)(struct adf_obj *obj, enum adf_event_type type);
++	/* required if supports_event is implemented */
++	void (*set_event)(struct adf_obj *obj, enum adf_event_type type,
++			bool enabled);
++	/* optional */
++	const char *(*event_type_str)(struct adf_obj *obj,
++			enum adf_event_type type);
++
++	/* optional */
++	int (*custom_data)(struct adf_obj *obj, void *data, size_t *size);
++};
++
++struct adf_obj {
++	enum adf_obj_type type;
++	char name[ADF_NAME_LEN];
++	struct adf_device *parent;
++
++	const struct adf_obj_ops *ops;
++
++	struct device dev;
++
++	struct spinlock file_lock;
++	struct list_head file_list;
++
++	struct mutex event_lock;
++	struct rb_root event_refcount;
++
++	int id;
++	int minor;
++};
++
++/**
++ * struct adf_device_ops - display device implementation ops
++ *
++ * @owner: device's module
++ * @base: common operations (see &struct adf_obj_ops)
++ *
++ * @attach: attach overlay engine @eng to interface @intf.  Return 0 on success
++ *	or error code (<0) on failure.
++ * @detach: detach overlay engine @eng from interface @intf.  Return 0 on
++ *	success or error code (<0) on failure.
++ *
++ * @validate_custom_format: validate the number and size of planes
++ *	in buffers with a custom format (i.e., not one of the @DRM_FORMAT_*
++ *	types defined in drm/drm_fourcc.h).  Return 0 if the buffer is valid or
++ *	an error code (<0) otherwise.
++ *
++ * @validate: validate that the proposed configuration @cfg is legal.  The
++ *	driver may optionally allocate and return some driver-private state in
++ *	@driver_state, which will be passed to the corresponding post().  The
++ *	driver may NOT commit any changes to hardware.  Return 0 if @cfg is
++ *	valid or an error code (<0) otherwise.
++ * @complete_fence: create a hardware-backed sync fence to be signaled when
++ *	@cfg is removed from the screen.  If unimplemented, ADF automatically
++ *	creates an sw_sync fence.  Return the sync fence on success or a
++ *	PTR_ERR() on failure.
++ * @post: flip @cfg onto the screen.  Wait for the display to begin scanning out
++ *	@cfg before returning.
++ * @advance_timeline: signal the sync fence for the last configuration to leave
++ *	the display.  If unimplemented, ADF automatically advances an sw_sync
++ *	timeline.
++ * @state_free: free driver-private state allocated during validate()
++ */
++struct adf_device_ops {
++	/* required */
++	struct module *owner;
++	const struct adf_obj_ops base;
++
++	/* optional */
++	int (*attach)(struct adf_device *dev, struct adf_overlay_engine *eng,
++			struct adf_interface *intf);
++	/* optional */
++	int (*detach)(struct adf_device *dev, struct adf_overlay_engine *eng,
++			struct adf_interface *intf);
++
++	/* required if any of the device's overlay engines supports at least one
++	   custom format */
++	int (*validate_custom_format)(struct adf_device *dev,
++			struct adf_buffer *buf);
++
++	/* required */
++	int (*validate)(struct adf_device *dev, struct adf_post *cfg,
++			void **driver_state);
++	/* optional */
++	struct sync_fence *(*complete_fence)(struct adf_device *dev,
++			struct adf_post *cfg, void *driver_state);
++	/* required */
++	void (*post)(struct adf_device *dev, struct adf_post *cfg,
++			void *driver_state);
++	/* required if complete_fence is implemented */
++	void (*advance_timeline)(struct adf_device *dev,
++			struct adf_post *cfg, void *driver_state);
++	/* required if validate allocates driver state */
++	void (*state_free)(struct adf_device *dev, void *driver_state);
++};
++
++struct adf_attachment_list {
++	struct adf_attachment attachment;
++	struct list_head head;
++};
++
++struct adf_device {
++	struct adf_obj base;
++	struct device *dev;
++
++	const struct adf_device_ops *ops;
++
++	struct mutex client_lock;
++
++	struct idr interfaces;
++	size_t n_interfaces;
++	struct idr overlay_engines;
++
++	struct list_head post_list;
++	struct mutex post_lock;
++	struct kthread_worker post_worker;
++	struct task_struct *post_thread;
++	struct kthread_work post_work;
++
++	struct list_head attached;
++	size_t n_attached;
++	struct list_head attach_allowed;
++	size_t n_attach_allowed;
++
++	struct adf_pending_post *onscreen;
++
++	struct sw_sync_timeline *timeline;
++	int timeline_max;
++};
++
++/**
++ * struct adf_interface_ops - display interface implementation ops
++ *
++ * @base: common operations (see &struct adf_obj_ops)
++ *
++ * @blank: change the display's DPMS state.  Return 0 on success or error
++ *	code (<0) on failure.
++ *
++ * @alloc_simple_buffer: allocate a buffer with the specified @w, @h, and
++ *	@format.  @format will be a standard RGB format (i.e.,
++ *	adf_format_is_rgb(@format) == true).  Return 0 on success or error code
++ *	(<0) on failure.  On success, return the buffer, offset, and pitch in
++ *	@dma_buf, @offset, and @pitch respectively.
++ * @describe_simple_post: provide driver-private data needed to post a single
++ *	buffer @buf.  Copy up to ADF_MAX_CUSTOM_DATA_SIZE bytes into @data
++ *	(allocated by ADF) and return the number of bytes in @size.  Return 0 on
++ *	success or error code (<0) on failure.
++ *
++ * @modeset: change the interface's mode.  @mode is not necessarily part of the
++ *	modelist passed to adf_hotplug_notify_connected(); the driver may
++ *	accept or reject custom modes at its discretion.  Return 0 on success or
++ *	error code (<0) if the mode could not be set.
++ *
++ * @screen_size: copy the screen dimensions in millimeters into @width_mm
++ *	and @height_mm.  Return 0 on success or error code (<0) if the display
++ *	dimensions are unknown.
++ *
++ * @type_str: return a string representation of custom @intf->type
++ *	(@intf->type >= @ADF_INTF_TYPE_DEVICE_CUSTOM).
++ */
++struct adf_interface_ops {
++	const struct adf_obj_ops base;
++
++	/* optional */
++	int (*blank)(struct adf_interface *intf, u8 state);
++
++	/* optional */
++	int (*alloc_simple_buffer)(struct adf_interface *intf,
++			u16 w, u16 h, u32 format,
++			struct dma_buf **dma_buf, u32 *offset, u32 *pitch);
++	/* optional */
++	int (*describe_simple_post)(struct adf_interface *intf,
++			struct adf_buffer *fb, void *data, size_t *size);
++
++	/* optional */
++	int (*modeset)(struct adf_interface *intf,
++			struct drm_mode_modeinfo *mode);
++
++	/* optional */
++	int (*screen_size)(struct adf_interface *intf, u16 *width_mm,
++			u16 *height_mm);
++
++	/* optional */
++	const char *(*type_str)(struct adf_interface *intf);
++};
++
++struct adf_interface {
++	struct adf_obj base;
++	const struct adf_interface_ops *ops;
++
++	struct drm_mode_modeinfo current_mode;
++
++	enum adf_interface_type type;
++	u32 idx;
++	u32 flags;
++
++	wait_queue_head_t vsync_wait;
++	ktime_t vsync_timestamp;
++	rwlock_t vsync_lock;
++
++	u8 dpms_state;
++
++	bool hotplug_detect;
++	struct drm_mode_modeinfo *modelist;
++	size_t n_modes;
++	rwlock_t hotplug_modelist_lock;
++};
++
++/**
++ * struct adf_interface_ops - overlay engine implementation ops
++ *
++ * @base: common operations (see &struct adf_obj_ops)
++ *
++ * @supported_formats: list of fourccs the overlay engine can scan out
++ * @n_supported_formats: length of supported_formats, up to
++ *	ADF_MAX_SUPPORTED_FORMATS
++ */
++struct adf_overlay_engine_ops {
++	const struct adf_obj_ops base;
++
++	/* required */
++	const u32 *supported_formats;
++	/* required */
++	const size_t n_supported_formats;
++};
++
++struct adf_overlay_engine {
++	struct adf_obj base;
++
++	const struct adf_overlay_engine_ops *ops;
++};
++
++#define adf_obj_to_device(ptr) \
++	container_of((ptr), struct adf_device, base)
++
++#define adf_obj_to_interface(ptr) \
++	container_of((ptr), struct adf_interface, base)
++
++#define adf_obj_to_overlay_engine(ptr) \
++	container_of((ptr), struct adf_overlay_engine, base)
++
++int __printf(4, 5) adf_device_init(struct adf_device *dev,
++		struct device *parent, const struct adf_device_ops *ops,
++		const char *fmt, ...);
++void adf_device_destroy(struct adf_device *dev);
++int __printf(7, 8) adf_interface_init(struct adf_interface *intf,
++		struct adf_device *dev, enum adf_interface_type type, u32 idx,
++		u32 flags, const struct adf_interface_ops *ops, const char *fmt,
++		...);
++void adf_interface_destroy(struct adf_interface *intf);
++static inline struct adf_device *adf_interface_parent(
++		struct adf_interface *intf)
++{
++	return intf->base.parent;
++}
++int __printf(4, 5) adf_overlay_engine_init(struct adf_overlay_engine *eng,
++		struct adf_device *dev,
++		const struct adf_overlay_engine_ops *ops, const char *fmt, ...);
++void adf_overlay_engine_destroy(struct adf_overlay_engine *eng);
++static inline struct adf_device *adf_overlay_engine_parent(
++		struct adf_overlay_engine *eng)
++{
++	return eng->base.parent;
++}
++
++int adf_attachment_allow(struct adf_device *dev, struct adf_overlay_engine *eng,
++		struct adf_interface *intf);
++
++const char *adf_obj_type_str(enum adf_obj_type type);
++const char *adf_interface_type_str(struct adf_interface *intf);
++const char *adf_event_type_str(struct adf_obj *obj, enum adf_event_type type);
++
++#define ADF_FORMAT_STR_SIZE 5
++void adf_format_str(u32 format, char buf[ADF_FORMAT_STR_SIZE]);
++int adf_format_validate_yuv(struct adf_device *dev, struct adf_buffer *buf,
++		u8 num_planes, u8 hsub, u8 vsub, u8 cpp[]);
++/**
++ * adf_format_validate_rgb - validate the number and size of planes in buffers
++ * with a custom RGB format.
++ *
++ * @dev: ADF device performing the validation
++ * @buf: buffer to validate
++ * @cpp: expected bytes per pixel
++ *
++ * adf_format_validate_rgb() is intended to be called as a helper from @dev's
++ * validate_custom_format() op.  @buf must have a single RGB plane.
++ *
++ * Returns 0 if @buf has a single plane with sufficient size, or -EINVAL
++ * otherwise.
++ */
++static inline int adf_format_validate_rgb(struct adf_device *dev,
++		struct adf_buffer *buf, u8 cpp)
++{
++	return adf_format_validate_yuv(dev, buf, 1, 1, 1, &cpp);
++}
++
++int adf_event_get(struct adf_obj *obj, enum adf_event_type type);
++int adf_event_put(struct adf_obj *obj, enum adf_event_type type);
++int adf_event_notify(struct adf_obj *obj, struct adf_event *event);
++
++static inline void adf_vsync_get(struct adf_interface *intf)
++{
++	adf_event_get(&intf->base, ADF_EVENT_VSYNC);
++}
++
++static inline void adf_vsync_put(struct adf_interface *intf)
++{
++	adf_event_put(&intf->base, ADF_EVENT_VSYNC);
++}
++
++int adf_vsync_wait(struct adf_interface *intf, long timeout);
++void adf_vsync_notify(struct adf_interface *intf, ktime_t timestamp);
++
++int adf_hotplug_notify_connected(struct adf_interface *intf,
++		struct drm_mode_modeinfo *modelist, size_t n_modes);
++void adf_hotplug_notify_disconnected(struct adf_interface *intf);
++
++void adf_modeinfo_set_name(struct drm_mode_modeinfo *mode);
++void adf_modeinfo_set_vrefresh(struct drm_mode_modeinfo *mode);
++
++#endif /* _VIDEO_ADF_H */
+diff -Naur include/video/adf_client.h include/video/adf_client.h
+--- include/video/adf_client.h	1969-12-31 21:00:00.000000000 -0300
++++ include/video/adf_client.h	2014-08-31 12:21:40.703937624 -0300
+@@ -0,0 +1,61 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _VIDEO_ADF_CLIENT_H_
++#define _VIDEO_ADF_CLIENT_H_
++
++#include <video/adf.h>
++
++int adf_interface_blank(struct adf_interface *intf, u8 state);
++u8 adf_interface_dpms_state(struct adf_interface *intf);
++
++void adf_interface_current_mode(struct adf_interface *intf,
++		struct drm_mode_modeinfo *mode);
++size_t adf_interface_modelist(struct adf_interface *intf,
++		struct drm_mode_modeinfo *modelist, size_t n_modes);
++int adf_interface_set_mode(struct adf_interface *intf,
++		struct drm_mode_modeinfo *mode);
++int adf_interface_get_screen_size(struct adf_interface *intf, u16 *width,
++		u16 *height);
++int adf_interface_simple_buffer_alloc(struct adf_interface *intf, u16 w, u16 h,
++		u32 format, struct dma_buf **dma_buf, u32 *offset, u32 *pitch);
++struct sync_fence *adf_interface_simple_post(struct adf_interface *intf,
++		struct adf_buffer *buf);
++
++bool adf_overlay_engine_supports_format(struct adf_overlay_engine *eng,
++		u32 format);
++
++size_t adf_device_attachments(struct adf_device *dev,
++		struct adf_attachment *attachments, size_t n_attachments);
++size_t adf_device_attachments_allowed(struct adf_device *dev,
++		struct adf_attachment *attachments, size_t n_attachments);
++bool adf_device_attached(struct adf_device *dev, struct adf_overlay_engine *eng,
++		struct adf_interface *intf);
++bool adf_device_attach_allowed(struct adf_device *dev,
++		struct adf_overlay_engine *eng, struct adf_interface *intf);
++int adf_device_attach(struct adf_device *dev, struct adf_overlay_engine *eng,
++		struct adf_interface *intf);
++int adf_device_detach(struct adf_device *dev, struct adf_overlay_engine *eng,
++		struct adf_interface *intf);
++
++struct sync_fence *adf_device_post(struct adf_device *dev,
++		struct adf_interface **intfs, size_t n_intfs,
++		struct adf_buffer *bufs, size_t n_bufs, void *custom_data,
++		size_t custom_data_size);
++struct sync_fence *adf_device_post_nocopy(struct adf_device *dev,
++		struct adf_interface **intfs, size_t n_intfs,
++		struct adf_buffer *bufs, size_t n_bufs, void *custom_data,
++		size_t custom_data_size);
++
++#endif /* _VIDEO_ADF_CLIENT_H_ */
+diff -Naur include/video/adf_fbdev.h include/video/adf_fbdev.h
+--- include/video/adf_fbdev.h	1969-12-31 21:00:00.000000000 -0300
++++ include/video/adf_fbdev.h	2014-08-31 12:21:40.697937625 -0300
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _VIDEO_ADF_FBDEV_H_
++#define _VIDEO_ADF_FBDEV_H_
++
++#include <linux/fb.h>
++#include <video/adf.h>
++
++struct adf_fbdev {
++	struct adf_interface *intf;
++	struct adf_overlay_engine *eng;
++	struct fb_info *info;
++	u32 pseudo_palette[16];
++
++	bool open;
++
++	struct dma_buf *dma_buf;
++	u32 offset;
++	u32 pitch;
++	void *vaddr;
++	u32 format;
++
++	u16 default_xres_virtual;
++	u16 default_yres_virtual;
++	u32 default_format;
++};
++
++void adf_modeinfo_to_fb_videomode(const struct drm_mode_modeinfo *mode,
++		struct fb_videomode *vmode);
++void adf_modeinfo_from_fb_videomode(const struct fb_videomode *vmode,
++		struct drm_mode_modeinfo *mode);
++
++int adf_fbdev_init(struct adf_fbdev *fbdev, struct adf_interface *interface,
++		struct adf_overlay_engine *eng,
++		u16 xres_virtual, u16 yres_virtual, u32 format,
++		struct fb_ops *fbops, const char *fmt, ...);
++void adf_fbdev_destroy(struct adf_fbdev *fbdev);
++
++int adf_fbdev_open(struct fb_info *info, int user);
++int adf_fbdev_release(struct fb_info *info, int user);
++int adf_fbdev_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
++int adf_fbdev_set_par(struct fb_info *info);
++int adf_fbdev_blank(int blank, struct fb_info *info);
++int adf_fbdev_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
++int adf_fbdev_mmap(struct fb_info *info, struct vm_area_struct *vma);
++
++#endif /* _VIDEO_ADF_FBDEV_H_ */
+diff -Naur include/video/adf_format.h include/video/adf_format.h
+--- include/video/adf_format.h	1969-12-31 21:00:00.000000000 -0300
++++ include/video/adf_format.h	2014-08-31 12:21:40.693937626 -0300
+@@ -0,0 +1,26 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _VIDEO_ADF_FORMAT_H
++#define _VIDEO_ADF_FORMAT_H
++
++bool adf_format_is_standard(u32 format);
++bool adf_format_is_rgb(u32 format);
++u8 adf_format_num_planes(u32 format);
++u8 adf_format_bpp(u32 format);
++u8 adf_format_plane_cpp(u32 format, int plane);
++u8 adf_format_horz_chroma_subsampling(u32 format);
++u8 adf_format_vert_chroma_subsampling(u32 format);
++
++#endif /* _VIDEO_ADF_FORMAT_H */
+diff -Naur include/video/adf_memblock.h include/video/adf_memblock.h
+--- include/video/adf_memblock.h	1969-12-31 21:00:00.000000000 -0300
++++ include/video/adf_memblock.h	2014-08-31 12:21:40.703937624 -0300
+@@ -0,0 +1,20 @@
++/*
++ * Copyright (C) 2013 Google, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#ifndef _VIDEO_ADF_MEMBLOCK_H_
++#define _VIDEO_ADF_MEMBLOCK_H_
++
++struct dma_buf *adf_memblock_export(phys_addr_t base, size_t size, int flags);
++
++#endif /* _VIDEO_ADF_MEMBLOCK_H_ */

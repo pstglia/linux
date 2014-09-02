@@ -850,4 +850,8 @@ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
 	 BUILD_BUG_ON_ZERO(((perms) >> 6) < (((perms) >> 3) & 7)) +	\
 	 BUILD_BUG_ON_ZERO((((perms) >> 3) & 7) < ((perms) & 7)) +	\
 	 (perms))
+
+/* To identify board information in panic logs, set this */
+extern char *mach_panic_string;	 
+	 
 #endif

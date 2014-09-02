@@ -279,6 +279,8 @@ extern unsigned int sysctl_tcp_notsent_lowat;
 extern int sysctl_tcp_min_tso_segs;
 extern int sysctl_tcp_autocorking;
 
+extern int sysctl_tcp_default_init_rwnd;
+
 extern atomic_long_t tcp_memory_allocated;
 extern struct percpu_counter tcp_sockets_allocated;
 extern int tcp_memory_pressure;
@@ -1579,6 +1581,8 @@ static inline bool tcp_stream_memory_free(const struct sock *sk)
 
 	return notsent_bytes < tcp_notsent_lowat(tp);
 }
+
+extern int tcp_nuke_addr(struct net *net, struct sockaddr *addr);
 
 #ifdef CONFIG_PROC_FS
 int tcp4_proc_init(void);

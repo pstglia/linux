@@ -120,6 +120,20 @@
 #endif
 
 
+#ifdef CONFIG_ANDROID_PARANOID_NETWORK
+#include <linux/android_aid.h>
+
+static inline int current_has_network(void)
+{
+      return in_egroup_p(AID_INET) || capable(CAP_NET_RAW);
+}
+#else
+static inline int current_has_network(void)
+{
+      return 1;
+}
+#endif
+
 /* The inetsw table contains everything that inet_create needs to
  * build a new socket.
  */
@@ -256,6 +270,9 @@ static int inet_create(struct net *net, struct socket *sock, int protocol,
 	unsigned char answer_flags;
 	int try_loading_module = 0;
 	int err;
+	
+	if (!current_has_network())
+	      return -EACCES;
 
 	sock->state = SS_UNCONNECTED;
 
@@ -305,8 +322,7 @@ lookup_protocol:
 	}
 
 	err = -EPERM;
-	if (sock->type == SOCK_RAW && !kern &&
-	    !ns_capable(net->user_ns, CAP_NET_RAW))
+	if (sock->type == SOCK_RAW && !kern && !capable(CAP_NET_RAW))
 		goto out_rcu_unlock;
 
 	sock->ops = answer->ops;
@@ -872,6 +888,7 @@ int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	case SIOCSIFPFLAGS:
 	case SIOCGIFPFLAGS:
 	case SIOCSIFFLAGS:
+	case SIOCKILLADDR:
 		err = devinet_ioctl(net, cmd, (void __user *)arg);
 		break;
 	default:

@@ -768,9 +768,12 @@ static int mbind_range(struct mm_struct *mm, unsigned long start,
 
 		pgoff = vma->vm_pgoff +
 			((vmstart - vma->vm_start) >> PAGE_SHIFT);
+		/**
+		 * pstglia - Android-x86 changes
+		 */
 		prev = vma_merge(mm, prev, vmstart, vmend, vma->vm_flags,
 				  vma->anon_vma, vma->vm_file, pgoff,
-				  new_pol);
+				  new_pol, vma_get_anon_name(vma));
 		if (prev) {
 			vma = prev;
 			next = vma->vm_next;
