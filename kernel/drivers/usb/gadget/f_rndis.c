@@ -527,6 +527,7 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	struct f_rndis			*rndis = req->context;
 	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
 	int				status;
+	rndis_init_msg_type		*buf;
 
 	if (req->status) {
 		DBG(cdev, "RNDIS command completes abnormally status %d\n",
@@ -539,6 +540,19 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	if (status < 0)
 		pr_err("RNDIS command error %d, %d/%d\n",
 			status, req->actual, req->length);
+
+	buf = (rndis_init_msg_type *)req->buf;
+
+	if (buf->MessageType == RNDIS_MSG_INIT) {
+		if (buf->MaxTransferSize > 2048)
+			rndis->port.multi_pkt_xfer = 1;
+		else
+			rndis->port.multi_pkt_xfer = 0;
+		DBG(cdev, "%s: MaxTransferSize: %d : Multi_pkt_txr: %s\n",
+				__func__, buf->MaxTransferSize,
+				rndis->port.multi_pkt_xfer ? "enabled" :
+							    "disabled");
+	}
 //	spin_unlock(&dev->lock);
 }
 
