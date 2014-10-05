@@ -7053,8 +7053,8 @@ void __might_sleep(const char *file, int line, int preempt_offset)
 	static unsigned long prev_jiffy;	/* ratelimiting */
 
 	rcu_sleep_check(); /* WARN_ON_ONCE() by default, no rate limit reqd. */
-	if ((preempt_count_equals(preempt_offset) && !irqs_disabled()) ||
-	    oops_in_progress)
+	if ((preempt_count_equals(preempt_offset) && !irqs_disabled() &&
+	    !is_idle_task(current)) || oops_in_progress)
 		return;
 	if (system_state != SYSTEM_RUNNING &&
 	    (!__might_sleep_init_called || system_state != SYSTEM_BOOTING))
@@ -7734,8 +7734,7 @@ static int cpu_cgroup_allow_attach(struct cgroup_subsys_state *css,
 		tcred = __task_cred(task);
 
 		if ((current != task) && !capable(CAP_SYS_NICE) &&
-		    !uid_eq(cred->euid.val, tcred->uid.val) &&
-		    !uid_eq(cred->euid.val, tcred->suid.val))
+		    cred->euid.val != tcred->uid.val && cred->euid.val != tcred->suid.val)
 			return -EACCES;
 	}
 
