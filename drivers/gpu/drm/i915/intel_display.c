@@ -834,7 +834,7 @@ bool intel_crtc_active(struct drm_crtc *crtc)
 	 * We can ditch the adjusted_mode.crtc_clock check as soon
 	 * as Haswell has gained clock readout/fastboot support.
 	 *
-	 * We can ditch the crtc->fb check as soon as we can
+	 * We can ditch the crtc->primary->fb check as soon as we can
 	 * properly reconstruct framebuffers.
 	 */
 	return intel_crtc->active && crtc->primary->fb &&
@@ -2298,17 +2298,17 @@ static bool intel_alloc_plane_obj(struct intel_crtc *crtc,
 
 	if (plane_config->tiled) {
 		obj->tiling_mode = I915_TILING_X;
-		obj->stride = crtc->base.fb->pitches[0];
+		obj->stride = crtc->base.primary->fb->pitches[0];
 	}
 
-	mode_cmd.pixel_format = crtc->base.fb->pixel_format;
-	mode_cmd.width = crtc->base.fb->width;
-	mode_cmd.height = crtc->base.fb->height;
-	mode_cmd.pitches[0] = crtc->base.fb->pitches[0];
+	mode_cmd.pixel_format = crtc->base.primary->fb->pixel_format;
+	mode_cmd.width = crtc->base.primary->fb->width;
+	mode_cmd.height = crtc->base.primary->fb->height;
+	mode_cmd.pitches[0] = crtc->base.primary->fb->pitches[0];
 
 	mutex_lock(&dev->struct_mutex);
 
-	if (intel_framebuffer_init(dev, to_intel_framebuffer(crtc->base.fb),
+	if (intel_framebuffer_init(dev, to_intel_framebuffer(crtc->base.primary->fb),
 				   &mode_cmd, obj)) {
 		DRM_DEBUG_KMS("intel fb init failed\n");
 		goto out_unref_obj;
@@ -2333,14 +2333,14 @@ static void intel_find_plane_obj(struct intel_crtc *intel_crtc,
 	struct intel_crtc *i;
 	struct intel_framebuffer *fb;
 
-	if (!intel_crtc->base.fb)
+	if (!intel_crtc->base.primary->fb)
 		return;
 
 	if (intel_alloc_plane_obj(intel_crtc, plane_config))
 		return;
 
-	kfree(intel_crtc->base.fb);
-	intel_crtc->base.fb = NULL;
+	kfree(intel_crtc->base.primary->fb);
+	intel_crtc->base.primary->fb = NULL;
 
 	/*
 	 * Failed to alloc the obj, check to see if we should share
@@ -2352,13 +2352,13 @@ static void intel_find_plane_obj(struct intel_crtc *intel_crtc,
 		if (c == &intel_crtc->base)
 			continue;
 
-		if (!i->active || !c->fb)
+		if (!i->active || !c->primary->fb)
 			continue;
 
-		fb = to_intel_framebuffer(c->fb);
+		fb = to_intel_framebuffer(c->primary->fb);
 		if (i915_gem_obj_ggtt_offset(fb->obj) == plane_config->base) {
-			drm_framebuffer_reference(c->fb);
-			intel_crtc->base.fb = c->fb;
+			drm_framebuffer_reference(c->primary->fb);
+			intel_crtc->base.primary->fb = c->primary->fb;
 			break;
 		}
 	}
@@ -2587,7 +2587,7 @@ void intel_display_handle_reset(struct drm_device *dev)
 		/*
 		 * FIXME: Once we have proper support for primary planes (and
 		 * disabling them without disabling the entire crtc) allow again
-		 * a NULL crtc->fb.
+		 * a NULL crtc->primary->fb.
 		 */
 		if (intel_crtc->active && crtc->primary->fb)
 			dev_priv->display.update_primary_plane(crtc,
@@ -4007,6 +4007,7 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 
 	intel_crtc_enable_planes(crtc);
 
+	drm_crtc_vblank_on(crtc);
 }
 
 /* IPS only exists on ULT machines and is tied to pipe A. */
@@ -6085,8 +6086,8 @@ static void i9xx_get_plane_config(struct intel_crtc *crtc,
 	int fourcc, pixel_format;
 	int aligned_height;
 
-	crtc->base.fb = kzalloc(sizeof(struct intel_framebuffer), GFP_KERNEL);
-	if (!crtc->base.fb) {
+	crtc->base.primary->fb = kzalloc(sizeof(struct intel_framebuffer), GFP_KERNEL);
+	if (!crtc->base.primary->fb) {
 		DRM_DEBUG_KMS("failed to alloc fb\n");
 		return;
 	}
@@ -6099,8 +6100,8 @@ static void i9xx_get_plane_config(struct intel_crtc *crtc,
 
 	pixel_format = val & DISPPLANE_PIXFORMAT_MASK;
 	fourcc = intel_format_to_fourcc(pixel_format);
-	crtc->base.fb->pixel_format = fourcc;
-	crtc->base.fb->bits_per_pixel =
+	crtc->base.primary->fb->pixel_format = fourcc;
+	crtc->base.primary->fb->bits_per_pixel =
 		drm_format_plane_cpp(fourcc, 0) * 8;
 
 	if (INTEL_INFO(dev)->gen >= 4) {
@@ -6115,23 +6116,23 @@ static void i9xx_get_plane_config(struct intel_crtc *crtc,
 	plane_config->base = base;
 
 	val = I915_READ(PIPESRC(pipe));
-	crtc->base.fb->width = ((val >> 16) & 0xfff) + 1;
-	crtc->base.fb->height = ((val >> 0) & 0xfff) + 1;
+	crtc->base.primary->fb->width = ((val >> 16) & 0xfff) + 1;
+	crtc->base.primary->fb->height = ((val >> 0) & 0xfff) + 1;
 
 	val = I915_READ(DSPSTRIDE(pipe));
-	crtc->base.fb->pitches[0] = val & 0xffffff80;
+	crtc->base.primary->fb->pitches[0] = val & 0xffffff80;
 
-	aligned_height = intel_align_height(dev, crtc->base.fb->height,
+	aligned_height = intel_align_height(dev, crtc->base.primary->fb->height,
 					    plane_config->tiled);
 
-	plane_config->size = ALIGN(crtc->base.fb->pitches[0] *
+	plane_config->size = ALIGN(crtc->base.primary->fb->pitches[0] *
 				   aligned_height, PAGE_SIZE);
 
 	DRM_DEBUG_KMS("pipe/plane %d/%d with fb: size=%dx%d@%d, offset=%x, pitch %d, size 0x%x\n",
-		      pipe, plane, crtc->base.fb->width,
-		      crtc->base.fb->height,
-		      crtc->base.fb->bits_per_pixel, base,
-		      crtc->base.fb->pitches[0],
+		      pipe, plane, crtc->base.primary->fb->width,
+		      crtc->base.primary->fb->height,
+		      crtc->base.primary->fb->bits_per_pixel, base,
+		      crtc->base.primary->fb->pitches[0],
 		      plane_config->size);
 
 }
@@ -7105,8 +7106,8 @@ static void ironlake_get_plane_config(struct intel_crtc *crtc,
 	int fourcc, pixel_format;
 	int aligned_height;
 
-	crtc->base.fb = kzalloc(sizeof(struct intel_framebuffer), GFP_KERNEL);
-	if (!crtc->base.fb) {
+	crtc->base.primary->fb = kzalloc(sizeof(struct intel_framebuffer), GFP_KERNEL);
+	if (!crtc->base.primary->fb) {
 		DRM_DEBUG_KMS("failed to alloc fb\n");
 		return;
 	}
@@ -7119,8 +7120,8 @@ static void ironlake_get_plane_config(struct intel_crtc *crtc,
 
 	pixel_format = val & DISPPLANE_PIXFORMAT_MASK;
 	fourcc = intel_format_to_fourcc(pixel_format);
-	crtc->base.fb->pixel_format = fourcc;
-	crtc->base.fb->bits_per_pixel =
+	crtc->base.primary->fb->pixel_format = fourcc;
+	crtc->base.primary->fb->bits_per_pixel =
 		drm_format_plane_cpp(fourcc, 0) * 8;
 
 	base = I915_READ(DSPSURF(plane)) & 0xfffff000;
@@ -7135,23 +7136,23 @@ static void ironlake_get_plane_config(struct intel_crtc *crtc,
 	plane_config->base = base;
 
 	val = I915_READ(PIPESRC(pipe));
-	crtc->base.fb->width = ((val >> 16) & 0xfff) + 1;
-	crtc->base.fb->height = ((val >> 0) & 0xfff) + 1;
+	crtc->base.primary->fb->width = ((val >> 16) & 0xfff) + 1;
+	crtc->base.primary->fb->height = ((val >> 0) & 0xfff) + 1;
 
 	val = I915_READ(DSPSTRIDE(pipe));
-	crtc->base.fb->pitches[0] = val & 0xffffff80;
+	crtc->base.primary->fb->pitches[0] = val & 0xffffff80;
 
-	aligned_height = intel_align_height(dev, crtc->base.fb->height,
+	aligned_height = intel_align_height(dev, crtc->base.primary->fb->height,
 					    plane_config->tiled);
 
-	plane_config->size = ALIGN(crtc->base.fb->pitches[0] *
+	plane_config->size = ALIGN(crtc->base.primary->fb->pitches[0] *
 				   aligned_height, PAGE_SIZE);
 
 	DRM_DEBUG_KMS("pipe/plane %d/%d with fb: size=%dx%d@%d, offset=%x, pitch %d, size 0x%x\n",
-		      pipe, plane, crtc->base.fb->width,
-		      crtc->base.fb->height,
-		      crtc->base.fb->bits_per_pixel, base,
-		      crtc->base.fb->pitches[0],
+		      pipe, plane, crtc->base.primary->fb->width,
+		      crtc->base.primary->fb->height,
+		      crtc->base.primary->fb->bits_per_pixel, base,
+		      crtc->base.primary->fb->pitches[0],
 		      plane_config->size);
 }
 
@@ -12261,12 +12262,12 @@ void intel_modeset_gem_init(struct drm_device *dev)
 		if (!c->primary->fb)
 			continue;
 
-		fb = to_intel_framebuffer(c->fb);
+		fb = to_intel_framebuffer(c->primary->fb);
 		if (intel_pin_and_fence_fb_obj(dev, fb->obj, NULL)) {
 			DRM_ERROR("failed to pin boot fb on pipe %d\n",
 				  to_intel_crtc(c)->pipe);
-			drm_framebuffer_unreference(c->fb);
-			c->fb = NULL;
+			drm_framebuffer_unreference(c->primary->fb);
+			c->primary->fb = NULL;
 		}
 	}
 	mutex_unlock(&dev->struct_mutex);

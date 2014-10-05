@@ -1502,6 +1502,8 @@ static void cgroup_enable_task_cg_lists(void)
 		 * We should check if the process is exiting, otherwise
 		 * it will race with cgroup_exit() in that the list
 		 * entry won't be deleted though the process has exited.
+		 * Do it while holding siglock so that we don't end up
+		 * racing against cgroup_exit().
 		 */
 		spin_lock_irq(&p->sighand->siglock);
 		if (!(p->flags & PF_EXITING)) {
@@ -2273,6 +2275,8 @@ static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 	}
 
 	return 0;
+}
+
 /**
  * cgroup_attach_task - attach a task or a whole threadgroup to a cgroup
  * @dst_cgrp: the cgroup to attach to
@@ -2308,7 +2312,6 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 
 	cgroup_migrate_finish(&preloaded_csets);
 	return ret;
->>>>>>> cgroup: split process / task migration into four steps
 }
 
 /*
@@ -3175,56 +3178,6 @@ static int cgroup_task_count(const struct cgroup *cgrp)
 		count += atomic_read(&link->cset->refcount);
 	up_read(&css_set_rwsem);
 	return count;
-}
-
-/*
- * To reduce the fork() overhead for systems that are not actually using
- * their cgroups capability, we don't maintain the lists running through
- * each css_set to its tasks until we see the list actually used - in other
- * words after the first mount.
- */
-static void cgroup_enable_task_cg_lists(void)
-{
-	struct task_struct *p, *g;
-
-	write_lock(&css_set_lock);
-
-	if (use_task_css_set_links)
-		goto out_unlock;
-
-	use_task_css_set_links = true;
-
-	/*
-	 * We need tasklist_lock because RCU is not safe against
-	 * while_each_thread(). Besides, a forking task that has passed
-	 * cgroup_post_fork() without seeing use_task_css_set_links = 1
-	 * is not guaranteed to have its child immediately visible in the
-	 * tasklist if we walk through it with RCU.
-	 */
-	read_lock(&tasklist_lock);
-	do_each_thread(g, p) {
-		task_lock(p);
-
-		WARN_ON_ONCE(!list_empty(&p->cg_list) ||
-			     task_css_set(p) != &init_css_set);
-
-		/*
-		 * We should check if the process is exiting, otherwise
-		 * it will race with cgroup_exit() in that the list
-		 * entry won't be deleted though the process has exited.
-		 * Do it while holding siglock so that we don't end up
-		 * racing against cgroup_exit().
-		 */
-		spin_lock_irq(&p->sighand->siglock);
-		if (!(p->flags & PF_EXITING) && list_empty(&p->cg_list))
-			list_add(&p->cg_list, &task_css_set(p)->tasks);
-		spin_unlock_irq(&p->sighand->siglock);
-
-		task_unlock(p);
-	} while_each_thread(g, p);
-	read_unlock(&tasklist_lock);
-out_unlock:
-	write_unlock(&css_set_lock);
 }
 
 /**

@@ -165,12 +165,6 @@ int efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 
 	efi_scratch.use_pgd = true;
 
-
-	if (efi_enabled(EFI_OLD_MEMMAP))
-		return;
-
-	efi_scratch.use_pgd = true;
-
 	/*
 	 * When making calls to the firmware everything needs to be 1:1
 	 * mapped and addressable with 32-bit pointers. Map the kernel
@@ -178,7 +172,7 @@ int efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 	 * stack pointer being < 4GB.
 	 */
 	if (!IS_ENABLED(CONFIG_EFI_MIXED))
-		return;
+		return 0;
 
 	page = alloc_page(GFP_KERNEL|__GFP_DMA32);
 	if (!page)
@@ -190,9 +184,9 @@ int efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 	npages = (_end - _text) >> PAGE_SHIFT;
 	text = __pa(_text);
 
-	if (kernel_map_pages_in_pgd(__va(efi_scratch.efi_pgt),
-				    text >> PAGE_SHIFT, text, npages, 0)) {
+	if (kernel_map_pages_in_pgd(pgd, text >> PAGE_SHIFT, text, npages, 0)) {
 		pr_err("Failed to map kernel text 1:1\n");
+		return 1;
 	}
 
 	return 0;

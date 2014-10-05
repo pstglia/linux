@@ -224,7 +224,7 @@ EXPORT_SYMBOL_GPL(snd_soc_write);
  *
  * Returns 1 for change, 0 for no change, or negative error code.
  */
-int snd_soc_update_bits(struct snd_soc_codec *codec, unsigned short reg,
+int snd_soc_update_bits(struct snd_soc_codec *codec, unsigned int reg,
 				unsigned int mask, unsigned int value)
 {
 	return snd_soc_component_update_bits(&codec->component, reg, mask,
@@ -244,7 +244,7 @@ EXPORT_SYMBOL_GPL(snd_soc_update_bits);
  *
  * Returns 1 for change else 0.
  */
-int snd_soc_test_bits(struct snd_soc_codec *codec, unsigned short reg,
+int snd_soc_test_bits(struct snd_soc_codec *codec, unsigned int reg,
 				unsigned int mask, unsigned int value)
 {
 	return snd_soc_component_test_bits(&codec->component, reg, mask, value);

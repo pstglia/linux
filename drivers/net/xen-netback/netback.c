@@ -563,7 +563,7 @@ static void xenvif_add_frag_responses(struct xenvif_queue *queue, int status,
 	}
 }
 
-void xenvif_kick_thread(struct xenvif *vif)
+void xenvif_kick_thread(struct xenvif_queue *queue)
 {
 	wake_up(&queue->wq);
 }

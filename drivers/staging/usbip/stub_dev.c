@@ -86,7 +86,6 @@ static ssize_t store_sockfd(struct device *dev, struct device_attribute *attr,
 	struct stub_device *sdev = dev_get_drvdata(dev);
 	int sockfd = 0;
 	struct socket *socket;
-	ssize_t err = -EINVAL;
 	int rv;
 
 	if (!sdev) {

@@ -171,9 +171,9 @@ nfs_page_group_unlock(struct nfs_page *req)
 
 	WARN_ON_ONCE(head != head->wb_head);
 
-	smp_mb__before_clear_bit();
+	smp_mb__before_atomic();
 	clear_bit(PG_HEADLOCK, &head->wb_flags);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 	wake_up_bit(&head->wb_flags, PG_HEADLOCK);
 }
 

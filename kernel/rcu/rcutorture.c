@@ -859,7 +859,7 @@ rcu_torture_fakewriter(void *arg)
 {
 	DEFINE_TORTURE_RANDOM(rand);
 
-	VERBOSE_PRINTK_STRING("rcu_torture_fakewriter task started");
+	VERBOSE_TOROUT_STRING("rcu_torture_fakewriter task started");
 	set_user_nice(current, MAX_NICE);
 
 	do {
@@ -972,7 +972,7 @@ rcu_torture_reader(void *arg)
 	struct timer_list t;
 	unsigned long long ts;
 
-	VERBOSE_PRINTK_STRING("rcu_torture_reader task started");
+	VERBOSE_TOROUT_STRING("rcu_torture_reader task started");
 	set_user_nice(current, MAX_NICE);
 	if (irqreader && cur_ops->irq_capable)
 		setup_timer_on_stack(&t, rcu_torture_timer, 0);

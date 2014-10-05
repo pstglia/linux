@@ -184,7 +184,7 @@ static bool ast_get_vbios_mode_info(struct drm_crtc *crtc, struct drm_display_mo
 		ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x91, 0x00);
 		if (vbios_mode->enh_table->flags & NewModeInfo) {
 			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x91, 0xa8);
-			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x92, crtc->fb->bits_per_pixel);
+			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x92, crtc->primary->fb->bits_per_pixel);
 			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x93, adjusted_mode->clock / 1000);
 			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x94, adjusted_mode->crtc_hdisplay);
 			ast_set_index_reg(ast, AST_IO_CRTC_PORT, 0x95, adjusted_mode->crtc_hdisplay >> 8);
@@ -841,6 +841,7 @@ ast_connector_detect(struct drm_connector *connector, bool force)
 }
 
 static const struct drm_connector_helper_funcs ast_connector_helper_funcs = {
+	.mode_valid = ast_mode_valid,
 	.get_modes = ast_get_modes,
 	.best_encoder = ast_best_single_encoder,
 };

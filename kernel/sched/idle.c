@@ -105,12 +105,10 @@ static void cpuidle_idle_call(void)
 
 	/*
 	 * Ask the cpuidle framework to choose a convenient idle state.
-	 * Fall back to the default arch specific idle method on errors.
+	 * Fall back to the default arch idle method on errors.
 	 */
 	next_state = cpuidle_select(drv, dev);
-
-	ret = next_state;
-	if (ret >= 0) {
+	if (next_state < 0) {
 use_default:
 		/*
 		 * We can't use the cpuidle framework, let's use the default
@@ -124,12 +122,6 @@ use_default:
 		goto exit_idle;
 	}
 
-	/*
-	 * Ask the governor to choose an idle state it thinks
-	 * it is convenient to go to. There is *always* a
-	 * convenient idle state
-	 */
-	next_state = cpuidle_select(drv, dev);
 
 	/*
 	 * The idle task must be scheduled, it is pointless to

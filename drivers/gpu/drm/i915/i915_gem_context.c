@@ -239,23 +239,16 @@ __create_hw_context(struct drm_device *dev,
 			ret = -ENOMEM;
 			goto err_out;
 		}
-	/*
-	 * Try to make the context utilize L3 as well as LLC.
-	 *
-	 * On VLV we don't have L3 controls in the PTEs so we
-	 * shouldn't touch the cache level, especially as that
-	 * would make the object snooped which might have a
-	 * negative performance impact.
-	 */
-	if (INTEL_INFO(dev)->gen >= 7 && !IS_VALLEYVIEW(dev)) {
-		ret = i915_gem_object_set_cache_level(ctx->obj,
-						      I915_CACHE_L3_LLC);
-		/* Failure shouldn't ever happen this early */
-		if (WARN_ON(ret))
-			goto err_out;
-		}
 
-		if (INTEL_INFO(dev)->gen >= 7) {
+		/*
+		 * Try to make the context utilize L3 as well as LLC.
+		 *
+		 * On VLV we don't have L3 controls in the PTEs so we
+		 * shouldn't touch the cache level, especially as that
+		 * would make the object snooped which might have a
+		 * negative performance impact.
+		 */
+		if (INTEL_INFO(dev)->gen >= 7 && !IS_VALLEYVIEW(dev)) {
 			ret = i915_gem_object_set_cache_level(ctx->obj,
 							      I915_CACHE_L3_LLC);
 			/* Failure shouldn't ever happen this early */
@@ -531,15 +524,6 @@ void i915_gem_context_close(struct drm_device *dev, struct drm_file *file)
 {
 	struct drm_i915_file_private *file_priv = file->driver_priv;
 
-<<<<<<< HEAD
-	if (!HAS_HW_CONTEXTS(dev)) {
-		kfree(file_priv->private_default_ctx);
-		return;
-	}
-
-	mutex_lock(&dev->struct_mutex);
-=======
->>>>>>> drm/i915: Always use kref tracking for all contexts.
 	idr_for_each(&file_priv->context_idr, context_idr_cleanup, NULL);
 	idr_destroy(&file_priv->context_idr);
 }

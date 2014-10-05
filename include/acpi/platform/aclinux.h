@@ -51,6 +51,8 @@
 
 #ifdef __KERNEL__
 
+#define ACPI_USE_SYSTEM_INTTYPES
+
 /* Compile for reduced hardware mode only with this kernel config */
 
 #ifdef CONFIG_ACPI_REDUCED_HARDWARE_ONLY

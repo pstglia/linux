@@ -968,11 +968,6 @@ END(__do_double_fault)
 #endif
 
 /*
- * End of kprobes section
- */
-       .popsection
-
-/*
  * APIC interrupts.
  */
 .macro apicinterrupt3 num sym do_sym
@@ -1143,7 +1138,7 @@ idtentry overflow do_overflow has_error_code=0
 idtentry bounds do_bounds has_error_code=0
 idtentry invalid_op do_invalid_op has_error_code=0
 idtentry device_not_available do_device_not_available has_error_code=0
-idtentry double_fault do_double_fault has_error_code=1 paranoid=1
+idtentry double_fault __do_double_fault has_error_code=1 paranoid=1
 idtentry coprocessor_segment_overrun do_coprocessor_segment_overrun has_error_code=0
 idtentry invalid_TSS do_invalid_TSS has_error_code=1
 idtentry segment_not_present do_segment_not_present has_error_code=1
@@ -1305,11 +1300,6 @@ apicinterrupt3 HYPERVISOR_CALLBACK_VECTOR \
 apicinterrupt3 HYPERVISOR_CALLBACK_VECTOR \
 	hyperv_callback_vector hyperv_vector_handler
 #endif /* CONFIG_HYPERV */
-
-/*
- * Some functions should be protected against kprobes
- */
-	.pushsection .kprobes.text, "ax"
 
 idtentry debug do_debug has_error_code=0 paranoid=1 shift_ist=DEBUG_STACK
 idtentry int3 do_int3 has_error_code=0 paranoid=1 shift_ist=DEBUG_STACK

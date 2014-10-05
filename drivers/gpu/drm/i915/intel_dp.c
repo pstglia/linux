@@ -1209,7 +1209,7 @@ static bool _edp_panel_vdd_on(struct intel_dp *intel_dp)
 	return need_to_disable;
 }
 
-static void edp_panel_vdd_on(struct intel_dp *intel_dp)
+void intel_edp_panel_vdd_on(struct intel_dp *intel_dp)
 {
 	if (is_edp(intel_dp)) {
 		bool vdd = _edp_panel_vdd_on(intel_dp);

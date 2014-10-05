@@ -536,12 +536,9 @@ static int virtscsi_queuecommand(struct virtio_scsi *vscsi,
 		req_size = sizeof(cmd->req.cmd);
 	}
 
-	if (virtscsi_kick_cmd(req_vq, cmd,
-			      sizeof cmd->req.cmd, sizeof cmd->resp.cmd,
-			      GFP_ATOMIC) != 0)
+	if (virtscsi_kick_cmd(req_vq, cmd, req_size, sizeof(cmd->resp.cmd)) != 0)
 		return SCSI_MLQUEUE_HOST_BUSY;
 	return 0;
-
 }
 
 static int virtscsi_queuecommand_single(struct Scsi_Host *sh,

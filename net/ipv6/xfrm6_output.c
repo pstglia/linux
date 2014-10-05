@@ -114,12 +114,6 @@ int xfrm6_prepare_output(struct xfrm_state *x, struct sk_buff *skb)
 	if (err)
 		return err;
 
-	memset(IP6CB(skb), 0, sizeof(*IP6CB(skb)));
-#ifdef CONFIG_NETFILTER
-	IP6CB(skb)->flags |= IP6SKB_XFRM_TRANSFORMED;
-#endif
-
-	skb->protocol = htons(ETH_P_IPV6);
 	skb->ignore_df = 1;
 
 	return x->outer_mode->output2(x, skb);

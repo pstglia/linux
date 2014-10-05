@@ -263,8 +263,7 @@ xfs_calc_iunlink_remove_reservation(
 	struct xfs_mount        *mp)
 {
 	return xfs_calc_buf_res(1, mp->m_sb.sb_sectsize) +
-		MAX((__uint16_t)XFS_FSB_TO_B(mp, 1),
-			(__uint16_t)XFS_INODE_CLUSTER_SIZE(mp));
+	       max_t(uint, XFS_FSB_TO_B(mp, 1), mp->m_inode_cluster_size);
 }
 
 /*

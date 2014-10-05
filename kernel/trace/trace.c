@@ -3883,9 +3883,10 @@ static int tracing_saved_cmdlines_open(struct inode *inode, struct file *filp)
 }
 
 static const struct file_operations tracing_saved_cmdlines_fops = {
-	.open	= tracing_open_generic,
-	.read	= tracing_saved_cmdlines_read,
-	.llseek	= generic_file_llseek,
+	.open           = tracing_saved_cmdlines_open,	
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = seq_release,
 };
 
 static ssize_t

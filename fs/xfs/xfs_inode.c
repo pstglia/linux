@@ -3274,7 +3274,7 @@ xfs_iflush_int(
 	if (ip->i_d.di_flushiter == DI_MAX_FLUSH)
 		ip->i_d.di_flushiter = 0;
 
-	xfs_iflush_fork(ip, dip, iip, XFS_DATA_FORK, bp);
+	xfs_iflush_fork(ip, dip, iip, XFS_DATA_FORK);
 	if (XFS_IFORK_Q(ip))
 		xfs_iflush_fork(ip, dip, iip, XFS_ATTR_FORK);
 	xfs_inobp_check(mp, bp);

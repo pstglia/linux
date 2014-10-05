@@ -21,7 +21,6 @@
 #include <asm/string.h>
 #include <linux/wireless.h>
 
-#include "../r8180.h"
 #include "ieee80211.h"
 
 #include <linux/crypto.h>

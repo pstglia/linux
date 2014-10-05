@@ -390,7 +390,7 @@ static bool intel_fb_initial_config(struct drm_fb_helper *fb_helper,
 		/* No preferred mode marked by the EDID? Are there any modes? */
 		if (!modes[i] && !list_empty(&connector->modes)) {
 			DRM_DEBUG_KMS("using first mode listed on connector %s\n",
-				      drm_get_connector_name(connector));
+				      connector->name);
 			modes[i] = list_first_entry(&connector->modes,
 						    struct drm_display_mode,
 						    head);
@@ -504,7 +504,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 	for_each_crtc(dev, crtc) {
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (!intel_crtc->active || !crtc->fb) {
+		if (!intel_crtc->active || !crtc->primary->fb) {
 			DRM_DEBUG_KMS("pipe %c not active or no fb, skipping\n",
 				      pipe_name(intel_crtc->pipe));
 			continue;
@@ -514,7 +514,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 			DRM_DEBUG_KMS("found possible fb from plane %c\n",
 				      pipe_name(intel_crtc->pipe));
 			plane_config = &intel_crtc->plane_config;
-			fb = to_intel_framebuffer(crtc->fb);
+			fb = to_intel_framebuffer(crtc->primary->fb);
 			max_size = plane_config->size;
 		}
 	}
@@ -596,7 +596,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 		if (!intel_crtc->active)
 			continue;
 
-		WARN(!crtc->fb,
+		WARN(!crtc->primary->fb,
 		     "re-used BIOS config but lost an fb on crtc %d\n",
 		     crtc->base.id);
 	}

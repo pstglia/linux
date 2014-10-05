@@ -666,13 +666,6 @@ static u64 __get_random_u32(u64 ctx, u64 a, u64 x, u64 r4, u64 r5)
 	return prandom_u32();
 }
 
-/* Register mappings for user programs. */
-#define A_REG		0
-#define X_REG		7
-#define TMP_REG		8
-#define ARG2_REG	2
-#define ARG3_REG	3
-
 static bool convert_bpf_extensions(struct sock_filter *fp,
 				   struct sock_filter_int **insnp)
 {
@@ -698,7 +691,7 @@ static bool convert_bpf_extensions(struct sock_filter *fp,
 		*insn = BPF_ALU32_IMM(BPF_AND, BPF_REG_A, PKT_TYPE_MAX);
 #ifdef __BIG_ENDIAN_BITFIELD
 		insn++;
-		*insn = BPF_ALU32_IMM(BPF_RSH, BPF_REG_A, 5);
+                *insn = BPF_ALU32_IMM(BPF_RSH, BPF_REG_A, 5);
 #endif
 		break;
 

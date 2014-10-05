@@ -658,7 +658,7 @@ static void trim_stale_devices(struct pci_dev *dev)
 
 		status = acpi_evaluate_integer(adev->handle, "_STA", NULL, &sta);
 		alive = (ACPI_SUCCESS(status) && device_status_valid(sta))
-			|| acpiphp_no_hotplug(handle);
+			|| acpiphp_no_hotplug(adev);
 	}
 	if (!alive)
 		alive = pci_device_is_present(dev);

@@ -451,8 +451,7 @@ int i915_error_state_to_str(struct drm_i915_error_state_buf *m,
 			}
 		}
 
-		obj = error->ring[i].ctx;
-		if (obj) {
+		if ((obj = error->ring[i].ctx)) {
 			err_printf(m, "%s --- HW Context = 0x%08x\n",
 				   dev_priv->ring[i].name,
 				   obj->gtt_offset);

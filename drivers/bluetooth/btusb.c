@@ -1638,8 +1638,7 @@ static int btusb_probe(struct usb_interface *intf,
 	if (id->driver_info & BTUSB_BCM_PATCHRAM)
 		hdev->setup = btusb_setup_bcm_patchram;
 
-	if (id->driver_info & BTUSB_INTEL) {
-		usb_enable_autosuspend(data->udev);
+	if (id->driver_info & BTUSB_INTEL)
 		hdev->setup = btusb_setup_intel;
 
 	/* Interface numbers are hardcoded in the specification */

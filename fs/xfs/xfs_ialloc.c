@@ -1435,7 +1435,7 @@ xfs_difree_inobt(
 	struct xfs_buf			*agbp,
 	xfs_agino_t			agino,
 	struct xfs_bmap_free		*flist,
-	int				*delete,
+	int				*deleted,
 	xfs_ino_t			*first_ino,
 	struct xfs_inobt_rec_incore	*orec)
 {
@@ -1660,7 +1660,7 @@ xfs_difree(
 	struct xfs_trans	*tp,		/* transaction pointer */
 	xfs_ino_t		inode,		/* inode to be freed */
 	struct xfs_bmap_free	*flist,		/* extents to free */
-	int			*delete,/* set if inode cluster was deleted */
+	int			*deleted,/* set if inode cluster was deleted */
 	xfs_ino_t		*first_ino)/* first inode in deleted cluster */
 {
 	/* REFERENCED */
@@ -1712,7 +1712,7 @@ xfs_difree(
 	/*
 	 * Fix up the inode allocation btree.
 	 */
-	error = xfs_difree_inobt(mp, tp, agbp, agino, flist, delete, first_ino,
+	error = xfs_difree_inobt(mp, tp, agbp, agino, flist, deleted, first_ino,
 				 &rec);
 	if (error)
 		goto error0;

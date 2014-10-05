@@ -693,9 +693,9 @@ int wl_send(struct wl_private *lp)
 
 #endif /* USE_WDS */
 
-        /* Free the skb and perform queue cleanup, as the buffer was
-            transmitted successfully */
-        dev_consume_skb_any( lp->txF.skb );
+		/* Free the skb and perform queue cleanup, as the buffer was
+		   transmitted successfully */
+		dev_consume_skb_any( lp->txF.skb );
 
 		lp->txF.skb = NULL;
 		lp->txF.port = 0;
@@ -1750,10 +1750,13 @@ int wl_send_dma(struct wl_private *lp, struct sk_buff *skb, int port)
 			WL_WDS_NETIF_STOP_QUEUE(lp);
 			lp->netif_queue_on = FALSE;
 
-            dev_kfree_skb_any( skb );
-            return 0;
-        }
-    }
+			dev_kfree_skb_any( skb );
+			return 0;
+		}
+	}
+
+	SET_BUF_CNT(desc, /*HCF_DMA_FD_CNT */ HFS_ADDR_DEST);
+	SET_BUF_SIZE(desc, HCF_DMA_TX_BUF1_SIZE);
 
 	desc_next = desc->next_desc_addr;
 
@@ -1772,11 +1775,7 @@ int wl_send_dma(struct wl_private *lp, struct sk_buff *skb, int port)
 
 	/* Free the skb and perform queue cleanup, as the buffer was
 	   transmitted successfully */
-	dev_kfree_skb(skb);
-
-    /* Free the skb and perform queue cleanup, as the buffer was
-            transmitted successfully */
-    dev_consume_skb_any( skb );
+	dev_consume_skb_any( skb );
 
 	return TRUE;
 }				/* wl_send_dma */

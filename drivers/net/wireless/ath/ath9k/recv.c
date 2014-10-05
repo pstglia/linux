@@ -862,10 +862,8 @@ static int ath9k_rx_skb_preprocess(struct ath_softc *sc,
 	 * everything but the rate is checked here, the rate check is done
 	 * separately to avoid doing two lookups for a rate for each frame.
 	 */
-	if (!ath9k_cmn_rx_accept(common, hdr, rx_status, rx_stats, decrypt_error, sc->rx.rxfilter)) {
-		ret = -EINVAL;
-		goto exit;
-	}
+	if (!ath9k_cmn_rx_accept(common, hdr, rx_status, rx_stats, decrypt_error, sc->rx.rxfilter))
+		return -EINVAL;
 
 	if (ath_is_mybeacon(common, hdr)) {
 		RX_STAT_INC(rx_beacons);
@@ -886,8 +884,7 @@ static int ath9k_rx_skb_preprocess(struct ath_softc *sc,
 		ath_dbg(common, ANY, "unsupported hw bitrate detected 0x%02x using 1 Mbit\n",
 			rx_stats->rs_rate);
 		RX_STAT_INC(rx_rate_err);
-		ret =-EINVAL;
-		goto exit;
+		return -EINVAL;
 	}
 
 	ath9k_cmn_process_rssi(common, hw, rx_stats, rx_status);

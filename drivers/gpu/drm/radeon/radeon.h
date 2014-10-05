@@ -145,6 +145,9 @@ extern int radeon_deep_color;
 /* number of hw syncs before falling back on blocking */
 #define RADEON_NUM_SYNCS			4
 
+/* number of hw syncs before falling back on blocking */
+#define RADEON_NUM_SYNCS			4
+
 /* hardcode those limit for now */
 #define RADEON_VA_IB_OFFSET			(1 << 20)
 #define RADEON_VA_RESERVED_SIZE			(8 << 20)

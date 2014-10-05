@@ -314,7 +314,7 @@ static int bio_integrity_generate_verify(struct bio *bio, int operate)
 	struct blk_integrity_exchg bix;
 	struct bio_vec *bv;
 	sector_t sector;
-	unsigned int sectors, total, ret;
+	unsigned int sectors, ret = 0, i;
 	void *prot_buf = bio->bi_integrity->bip_buf;
 
 	if (operate)
@@ -322,7 +322,6 @@ static int bio_integrity_generate_verify(struct bio *bio, int operate)
 	else
 		sector = bio->bi_integrity->bip_iter.bi_sector;
 
-	total = ret = 0;
 	bix.disk_name = bio->bi_bdev->bd_disk->disk_name;
 	bix.sector_size = bi->sector_size;
 
@@ -346,8 +345,6 @@ static int bio_integrity_generate_verify(struct bio *bio, int operate)
 		sectors = bv->bv_len / bi->sector_size;
 		sector += sectors;
 		prot_buf += sectors * bi->tuple_size;
-		total += sectors * bi->tuple_size;
-		BUG_ON(total > bio->bi_integrity->bip_iter.bi_size);
 
 		kunmap_atomic(kaddr);
 	}

@@ -179,7 +179,7 @@ static struct mtip_cmd *mtip_get_int_command(struct driver_data *dd)
 {
 	struct request *rq;
 
-	rq = blk_mq_alloc_reserved_request(dd->queue, 0, __GFP_WAIT);
+	rq = blk_mq_alloc_request(dd->queue, 0, __GFP_WAIT, true);
 	return blk_mq_rq_to_pdu(rq);
 }
 
@@ -3835,8 +3835,6 @@ static int mtip_init_cmd(void *data, struct request *rq, unsigned int hctx_idx,
 static struct blk_mq_ops mtip_mq_ops = {
 	.queue_rq	= mtip_queue_rq,
 	.map_queue	= blk_mq_map_queue,
-	.alloc_hctx	= blk_mq_alloc_single_hw_queue,
-	.free_hctx	= blk_mq_free_single_hw_queue,
 	.init_request	= mtip_init_cmd,
 	.exit_request	= mtip_free_cmd,
 };
