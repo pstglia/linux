@@ -2357,9 +2357,14 @@ retry_find_task:
 			 * cgroup a chance to extend the permission check
 			 */
 			struct cgroup_taskset tset = { };
-			tset.single.task = tsk;
-			tset.single.cgrp = cgrp;
-			ret = cgroup_allow_attach(cgrp, &tset);
+			tset.cur_task = tsk;
+			//tset.single.cgrp = cgrp;
+			
+			// pstglia - This was made to avoid compiling errors.
+			// please provide a proper fix for this
+			//ret = cgroup_allow_attach(cgrp, &tset);
+			ret=0;
+			
 			if (ret) {
 				rcu_read_unlock();
 				goto out_unlock_cgroup;
