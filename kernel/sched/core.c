@@ -7734,8 +7734,8 @@ static int cpu_cgroup_allow_attach(struct cgroup_subsys_state *css,
 		tcred = __task_cred(task);
 
 		if ((current != task) && !capable(CAP_SYS_NICE) &&
-		    !uid_eq(cred->euid, tcred->uid) &&
-		    !uid_eq(cred->euid, tcred->suid))
+		    !uid_eq(cred->euid.val, tcred->uid.val) &&
+		    !uid_eq(cred->euid.val, tcred->suid.val))
 			return -EACCES;
 	}
 
