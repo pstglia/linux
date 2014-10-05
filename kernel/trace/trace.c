@@ -1307,6 +1307,7 @@ struct saved_cmdlines_buffer {
 	unsigned map_pid_to_cmdline[PID_MAX_DEFAULT+1];
 	unsigned *map_cmdline_to_pid;
 	unsigned cmdline_num;
+	unsigned saved_tgids[SAVED_CMDLINES_DEFAULT+1];
 	int cmdline_idx;
 	char *saved_cmdlines;
 };
@@ -1540,6 +1541,8 @@ static int trace_save_cmdline(struct task_struct *tsk)
 	}
 
 	set_cmdline(idx, tsk->comm);
+	
+	savedcmd->saved_tgids[idx] = tsk->tgid;
 
 	arch_spin_unlock(&trace_cmdline_lock);
 
@@ -1592,7 +1595,7 @@ int trace_find_tgid(int pid)
 	arch_spin_lock(&trace_cmdline_lock);
 	map = map_pid_to_cmdline[pid];
 	if (map != NO_CMDLINE_MAP)
-		tgid = saved_tgids[map];
+		tgid = savedcmd->saved_tgids[map];
 	else
 		tgid = -1;
 
