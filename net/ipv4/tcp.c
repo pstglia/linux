@@ -3329,9 +3329,9 @@ restart:
 				if (!inet->pinet6)
 					continue;
 
-				s6 = &inet->pinet6->rcv_saddr;
+				/*s6 = &inet->pinet6->rcv_saddr;
 				if (ipv6_addr_type(s6) == IPV6_ADDR_MAPPED)
-					continue;
+					continue;*/
 
 				if (!ipv6_addr_equal(in6, s6) &&
 				    !(ipv6_addr_equal(in6, &in6addr_any) &&
