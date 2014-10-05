@@ -119,20 +119,20 @@ static struct uid_stat *find_or_create_uid_stat(uid_t uid)
 	return entry;
 }
 
-int uid_stat_tcp_snd(uid_t uid, int size) {
+int uid_stat_tcp_snd(kuid_t uid, int size) {
 	struct uid_stat *entry;
 	activity_stats_update();
-	entry = find_or_create_uid_stat(uid);
+	entry = find_or_create_uid_stat(uid.val);
 	if (!entry)
 		return -1;
 	atomic_add(size, &entry->tcp_snd);
 	return 0;
 }
 
-int uid_stat_tcp_rcv(uid_t uid, int size) {
+int uid_stat_tcp_rcv(kuid_t uid, int size) {
 	struct uid_stat *entry;
 	activity_stats_update();
-	entry = find_or_create_uid_stat(uid);
+	entry = find_or_create_uid_stat(uid.val);
 	if (!entry)
 		return -1;
 	atomic_add(size, &entry->tcp_rcv);
