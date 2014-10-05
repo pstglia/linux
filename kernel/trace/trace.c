@@ -1593,7 +1593,7 @@ int trace_find_tgid(int pid)
 
 	preempt_disable();
 	arch_spin_lock(&trace_cmdline_lock);
-	map = map_pid_to_cmdline[pid];
+	map = savedcmd->map_pid_to_cmdline[pid];
 	if (map != NO_CMDLINE_MAP)
 		tgid = savedcmd->saved_tgids[map];
 	else
