@@ -3902,17 +3902,17 @@ tracing_saved_tgids_read(struct file *file, char __user *ubuf,
 	int pid;
 	int i;
 
-	file_buf = kmalloc(SAVED_CMDLINES*(16+1+16), GFP_KERNEL);
+	file_buf = kmalloc(SAVED_CMDLINES_DEFAULT*(16+1+16), GFP_KERNEL);
 	if (!file_buf)
 		return -ENOMEM;
 
 	buf = file_buf;
 
-	for (i = 0; i < SAVED_CMDLINES; i++) {
+	for (i = 0; i < SAVED_CMDLINES_DEFAULT; i++) {
 		int tgid;
 		int r;
 
-		pid = map_cmdline_to_pid[i];
+		pid = savedcmd->map_cmdline_to_pid[i];
 		if (pid == -1 || pid == NO_CMDLINE_MAP)
 			continue;
 
