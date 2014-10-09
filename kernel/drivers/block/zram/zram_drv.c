@@ -135,10 +135,8 @@ static ssize_t mem_used_total_show(struct device *dev,
 
 	deprecated_attr_warn("mem_used_total");
 	down_read(&zram->init_lock);
-	if (init_done(zram)) {
-		struct zram_meta *meta = zram->meta;
+	if (init_done(zram))
 		val = zs_get_total_pages(meta->mem_pool);
-	}
 	up_read(&zram->init_lock);
 
 	return scnprintf(buf, PAGE_SIZE, "%llu\n", val << PAGE_SHIFT);
