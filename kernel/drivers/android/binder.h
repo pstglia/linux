@@ -20,7 +20,15 @@
 #ifndef _LINUX_BINDER_H
 #define _LINUX_BINDER_H
 
+<<<<<<<< HEAD:kernel/drivers/staging/android/binder.h
 #include "uapi/binder.h"
+========
+#ifdef CONFIG_ANDROID_BINDER_IPC_32BIT
+#define BINDER_IPC_32BIT 1
+#endif
+
+#include <uapi/linux/android/binder.h>
+>>>>>>>> 4c73ee058 (staging: android: binder: move to the "real" part of the kernel):drivers/android/binder.h
 
 #endif /* _LINUX_BINDER_H */
 
