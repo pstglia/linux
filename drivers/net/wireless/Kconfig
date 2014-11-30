@@ -216,6 +216,9 @@ config USB_NET_RNDIS_WLAN
 
 source "drivers/net/wireless/rtl818x/Kconfig"
 
+# pstglia - rtl8723as driver from hadess
+source "drivers/net/wireless/rtl8723as/Kconfig"
+
 config ADM8211
 	tristate "ADMtek ADM8211 support"
 	depends on MAC80211 && PCI
