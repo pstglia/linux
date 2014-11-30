@@ -70,6 +70,13 @@ config TOUCHSCREEN_AD7879
 	  To compile this driver as a module, choose M here: the
 	  module will be called ad7879.
 
+# pstglia - touchscreen goodix gt9xx
+config TOUCHSCREEN_GOODIX
+	tristate "Goodix gt9xx support"
+	help
+	  Got from https://github.com/hadess/gt9xx
+	  Support for Goodix gt9xx
+
 config TOUCHSCREEN_AD7879_I2C
 	tristate "support I2C bus connection"
 	depends on TOUCHSCREEN_AD7879 && I2C
