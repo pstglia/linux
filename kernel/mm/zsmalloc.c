@@ -256,9 +256,9 @@ struct mapping_area {
 
 #ifdef CONFIG_ZPOOL
 
-static void *zs_zpool_create(gfp_t gfp, struct zpool_ops *zpool_ops)
+static void *zs_zpool_create(char *name, gfp_t gfp, struct zpool_ops *zpool_ops)
 {
-	return zs_create_pool(gfp);
+	return zs_create_pool(name, gfp);
 }
 
 static void zs_zpool_destroy(void *pool)
@@ -1169,7 +1169,226 @@ EXPORT_SYMBOL_GPL(zs_unmap_object);
 
 unsigned long zs_get_total_pages(struct zs_pool *pool)
 {
-	return atomic_long_read(&pool->pages_allocated);
+	unsigned long obj;
+	struct link_free *link;
+	struct size_class *class;
+	void *vaddr;
+
+	struct page *first_page, *m_page;
+	unsigned long m_objidx, m_offset;
+
+	if (unlikely(!size || size > ZS_MAX_ALLOC_SIZE))
+		return 0;
+
+	class = pool->size_class[get_size_class_index(size)];
+
+	spin_lock(&class->lock);
+	first_page = find_get_zspage(class);
+
+	if (!first_page) {
+		spin_unlock(&class->lock);
+		first_page = alloc_zspage(class, pool->flags);
+		if (unlikely(!first_page))
+			return 0;
+
+		set_zspage_mapping(first_page, class->index, ZS_EMPTY);
+		atomic_long_add(class->pages_per_zspage,
+					&pool->pages_allocated);
+		spin_lock(&class->lock);
+	}
+
+	obj = (unsigned long)first_page->freelist;
+	obj_handle_to_location(obj, &m_page, &m_objidx);
+	m_offset = obj_idx_to_offset(m_page, m_objidx, class->size);
+
+	vaddr = kmap_atomic(m_page);
+	link = (struct link_free *)vaddr + m_offset / sizeof(*link);
+	first_page->freelist = link->next;
+	memset(link, POISON_INUSE, sizeof(*link));
+	kunmap_atomic(vaddr);
+
+	first_page->inuse++;
+	/* Now move the zspage to another fullness group, if required */
+	fix_fullness_group(pool, first_page);
+	spin_unlock(&class->lock);
+
+	return obj;
+}
+EXPORT_SYMBOL_GPL(zs_malloc);
+
+void zs_free(struct zs_pool *pool, unsigned long obj)
+{
+	struct link_free *link;
+	struct page *first_page, *f_page;
+	unsigned long f_objidx, f_offset;
+	void *vaddr;
+
+	int class_idx;
+	struct size_class *class;
+	enum fullness_group fullness;
+
+	if (unlikely(!obj))
+		return;
+
+	obj_handle_to_location(obj, &f_page, &f_objidx);
+	first_page = get_first_page(f_page);
+
+	get_zspage_mapping(first_page, &class_idx, &fullness);
+	class = pool->size_class[class_idx];
+	f_offset = obj_idx_to_offset(f_page, f_objidx, class->size);
+
+	spin_lock(&class->lock);
+
+	/* Insert this object in containing zspage's freelist */
+	vaddr = kmap_atomic(f_page);
+	link = (struct link_free *)(vaddr + f_offset);
+	link->next = first_page->freelist;
+	kunmap_atomic(vaddr);
+	first_page->freelist = (void *)obj;
+
+	first_page->inuse--;
+	fullness = fix_fullness_group(pool, first_page);
+	spin_unlock(&class->lock);
+
+	if (fullness == ZS_EMPTY) {
+		atomic_long_sub(class->pages_per_zspage,
+				&pool->pages_allocated);
+		free_zspage(first_page);
+	}
+}
+EXPORT_SYMBOL_GPL(zs_free);
+
+/**
+ * zs_create_pool - Creates an allocation pool to work from.
+ * @flags: allocation flags used to allocate pool metadata
+ *
+ * This function must be called before anything when using
+ * the zsmalloc allocator.
+ *
+ * On success, a pointer to the newly created pool is returned,
+ * otherwise NULL.
+ */
+struct zs_pool *zs_create_pool(char *name, gfp_t flags)
+{
+	int i;
+	struct zs_pool *pool;
+	struct size_class *prev_class = NULL;
+
+	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
+	if (!pool)
+		return NULL;
+
+	pool->size_class = kcalloc(zs_size_classes, sizeof(struct size_class *),
+			GFP_KERNEL);
+	if (!pool->size_class) {
+		kfree(pool);
+		return NULL;
+	}
+
+	/*
+	 * Iterate reversly, because, size of size_class that we want to use
+	 * for merging should be larger or equal to current size.
+	 */
+	for (i = zs_size_classes - 1; i >= 0; i--) {
+		int size;
+		int pages_per_zspage;
+		struct size_class *class;
+
+		size = ZS_MIN_ALLOC_SIZE + i * ZS_SIZE_CLASS_DELTA;
+		if (size > ZS_MAX_ALLOC_SIZE)
+			size = ZS_MAX_ALLOC_SIZE;
+		pages_per_zspage = get_pages_per_zspage(size);
+
+		/*
+		 * size_class is used for normal zsmalloc operation such
+		 * as alloc/free for that size. Although it is natural that we
+		 * have one size_class for each size, there is a chance that we
+		 * can get more memory utilization if we use one size_class for
+		 * many different sizes whose size_class have same
+		 * characteristics. So, we makes size_class point to
+		 * previous size_class if possible.
+		 */
+		if (prev_class) {
+			if (can_merge(prev_class, size, pages_per_zspage)) {
+				pool->size_class[i] = prev_class;
+				continue;
+			}
+		}
+
+		class = kzalloc(sizeof(struct size_class), GFP_KERNEL);
+		if (!class)
+			goto err;
+
+		class->size = size;
+		class->index = i;
+		class->pages_per_zspage = pages_per_zspage;
+		spin_lock_init(&class->lock);
+		pool->size_class[i] = class;
+
+		prev_class = class;
+	}
+
+	pool->flags = flags;
+
+	return pool;
+
+err:
+	zs_destroy_pool(pool);
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(zs_create_pool);
+
+void zs_destroy_pool(struct zs_pool *pool)
+{
+	int i;
+
+	for (i = 0; i < zs_size_classes; i++) {
+		int fg;
+		struct size_class *class = pool->size_class[i];
+
+		if (!class)
+			continue;
+
+		if (class->index != i)
+			continue;
+
+		for (fg = 0; fg < _ZS_NR_FULLNESS_GROUPS; fg++) {
+			if (class->fullness_list[fg]) {
+				pr_info("Freeing non-empty class with size %db, fullness group %d\n",
+					class->size, fg);
+			}
+		}
+		kfree(class);
+	}
+
+	kfree(pool->size_class);
+	kfree(pool);
+}
+EXPORT_SYMBOL_GPL(zs_destroy_pool);
+
+static int __init zs_init(void)
+{
+	int ret = zs_register_cpu_notifier();
+
+	if (ret) {
+		zs_unregister_cpu_notifier();
+		return ret;
+	}
+
+	init_zs_size_classes();
+
+#ifdef CONFIG_ZPOOL
+	zpool_register_driver(&zs_zpool_driver);
+#endif
+	return 0;
+}
+
+static void __exit zs_exit(void)
+{
+#ifdef CONFIG_ZPOOL
+	zpool_unregister_driver(&zs_zpool_driver);
+#endif
+	zs_unregister_cpu_notifier();
 }
 EXPORT_SYMBOL_GPL(zs_get_total_pages);
 
