@@ -78,6 +78,9 @@ struct arizona_pdata {
 	int reset;      /** GPIO controlling /RESET, if any */
 	int ldoena;     /** GPIO controlling LODENA, if any */
 
+	struct gpio_desc *reset_gpio;
+	struct gpio_desc *ldoena_gpio;
+
 	/** Regulator configuration for MICVDD */
 	struct regulator_init_data *micvdd;
 
@@ -187,6 +190,15 @@ struct arizona_pdata {
 
 	/** General purpose switch control */
 	unsigned int gpsw;
+};
+
+/* added for the WM510205 case here */
+const static struct arizona_pdata wm5102_pdata = {
+	.reset = 0x03,
+	.ldoena = 0x17,
+	.irq_flags = IRQF_TRIGGER_RISING|
+			IRQF_TRIGGER_FALLING,
+	.irq_gpio = 0x04,
 };
 
 #endif
