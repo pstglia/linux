@@ -115,6 +115,10 @@ struct gpio_chip {
 						unsigned offset,
 						unsigned debounce);
 
+        void                    (*set_pinmux)(int gpio, int alt);
+        int                     (*get_pinmux)(int gpio);
+
+
 	int			(*to_irq)(struct gpio_chip *chip,
 						unsigned offset);
 
