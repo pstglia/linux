@@ -755,7 +755,8 @@ static int snd_byt_mc_probe(struct platform_device *pdev)
 	/* register the soc card */
 	snd_soc_card_byt.dev = &pdev->dev;
 	snd_soc_card_set_drvdata(&snd_soc_card_byt, drv);
-	ret_val = snd_soc_register_card(&snd_soc_card_byt);
+	//ret_val = snd_soc_register_card(&snd_soc_card_byt);
+	ret_val = devm_snd_soc_register_card(&pdev->dev, &snd_soc_card_byt);
 	if (ret_val) {
 		pr_err("snd_soc_register_card failed %d\n", ret_val);
 		return ret_val;
@@ -821,8 +822,9 @@ static struct platform_driver snd_byt_mc_driver = { //Done
 	.remove = snd_byt_mc_remove,
 	.shutdown = snd_byt_mc_shutdown,
 };
+module_platform_driver(snd_byt_mc_driver)
 
-static int __init snd_byt_driver_init(void)
+/*static int __init snd_byt_driver_init(void)
 {
 	pr_info("Baytrail Machine Driver byt_wm5102 registerd\n");
 	return platform_driver_register(&snd_byt_mc_driver);
@@ -834,7 +836,7 @@ static void __exit snd_byt_driver_exit(void)
 	pr_debug("In %s\n", __func__);
 	platform_driver_unregister(&snd_byt_mc_driver);
 }
-module_exit(snd_byt_driver_exit);
+module_exit(snd_byt_driver_exit);*/
 
 MODULE_DESCRIPTION("ASoC Intel(R) Baytrail Machine driver");
 MODULE_AUTHOR("Omair Md Abdullah <omair.m.abdullah@intel.com>");
