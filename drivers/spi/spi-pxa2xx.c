@@ -1229,7 +1229,7 @@ pxa2xx_spi_acpi_get_pdata(struct platform_device *pdev)
 	if (adev->pnp.unique_id && !kstrtoint(adev->pnp.unique_id, 0, &devid))
 		ssp->port_id = devid;
 
-	pdata->num_chipselect = 1;
+	pdata->num_chipselect = 20;
 	pdata->enable_dma = true;
 
 	return pdata;

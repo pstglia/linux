@@ -17,6 +17,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
+#include <linux/acpi.h>
 #include <linux/of.h>
 
 #include <linux/mfd/arizona/core.h>
@@ -81,6 +82,16 @@ static int arizona_spi_remove(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_ACPI
+static struct acpi_device_id wm5102_acpi_match[] = {
+               { "WM5102", 0},
+               { "WM510204", 0},
+               { "WM510205", 0},
+               { },
+};
+MODULE_DEVICE_TABLE(acpi, wm5102_acpi_match);
+#endif
+
 static const struct spi_device_id arizona_spi_ids[] = {
 	{ "wm5102", WM5102 },
 	{ "wm5110", WM5110 },
@@ -94,6 +105,9 @@ static struct spi_driver arizona_spi_driver = {
 		.owner	= THIS_MODULE,
 		.pm	= &arizona_pm_ops,
 		.of_match_table	= of_match_ptr(arizona_of_match),
+#ifdef CONFIG_ACPI
+               .acpi_match_table = ACPI_PTR(wm5102_acpi_match),
+#endif
 	},
 	.probe		= arizona_spi_probe,
 	.remove		= arizona_spi_remove,
