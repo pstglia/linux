@@ -363,6 +363,14 @@ int snd_soc_dapm_get_enum_double(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
 int snd_soc_dapm_put_enum_double(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_get_enum_virt(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_put_enum_virt(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_get_value_enum_double(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_put_value_enum_double(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
 int snd_soc_dapm_info_pin_switch(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_info *uinfo);
 int snd_soc_dapm_get_pin_switch(struct snd_kcontrol *kcontrol,
@@ -443,6 +451,9 @@ int snd_soc_dapm_dai_get_connected_widgets(struct snd_soc_dai *dai, int stream,
 struct snd_soc_codec *snd_soc_dapm_kcontrol_codec(struct snd_kcontrol *kcontrol);
 struct snd_soc_dapm_context *snd_soc_dapm_kcontrol_dapm(
 	struct snd_kcontrol *kcontrol);
+
+struct snd_soc_dapm_widget_list *snd_soc_dapm_kcontrol_widget_list(
+        struct snd_kcontrol *kcontrol);
 
 /* dapm widget types */
 enum snd_soc_dapm_type {
@@ -525,6 +536,8 @@ struct snd_soc_dapm_widget {
 	enum snd_soc_dapm_type id;
 	const char *name;		/* widget name */
 	const char *sname;	/* stream name */
+        struct snd_soc_codec *codec;
+        struct snd_soc_platform *platform;
 	struct list_head list;
 	struct snd_soc_dapm_context *dapm;
 

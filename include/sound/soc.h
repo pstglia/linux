@@ -547,6 +547,8 @@ int snd_soc_get_enum_double(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
 int snd_soc_put_enum_double(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
+int snd_soc_put_value_enum_double(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
 int snd_soc_info_volsw(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_info *uinfo);
 #define snd_soc_info_bool_ext		snd_ctl_boolean_mono_info
@@ -789,6 +791,8 @@ struct snd_soc_codec {
 	struct device *dev;
 	const struct snd_soc_codec_driver *driver;
 
+        struct mutex mutex;
+        struct snd_soc_card *card;
 	struct list_head list;
 	struct list_head card_list;
 
@@ -1171,9 +1175,11 @@ struct soc_mreg_control {
 /* enumerated kcontrol */
 struct soc_enum {
 	int reg;
+	unsigned short reg2;
 	unsigned char shift_l;
 	unsigned char shift_r;
 	unsigned int items;
+	unsigned int max;
 	unsigned int mask;
 	const char * const *texts;
 	const unsigned int *values;

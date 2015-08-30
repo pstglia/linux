@@ -157,9 +157,6 @@ EXPORT_SYMBOL_GPL(wm8997_irq);
 
 static const struct reg_default wm8997_reg_default[] = {
 	{ 0x00000009, 0x0001 },    /* R9     - Ctrl IF I2C1 CFG 1 */
-	{ 0x00000016, 0x0000 },    /* R22    - Write Sequencer Ctrl 0 */
-	{ 0x00000017, 0x0000 },    /* R23    - Write Sequencer Ctrl 1 */
-	{ 0x00000018, 0x0000 },    /* R24    - Write Sequencer Ctrl 2 */
 	{ 0x00000020, 0x0000 },    /* R32    - Tone Generator 1 */
 	{ 0x00000021, 0x1000 },    /* R33    - Tone Generator 2 */
 	{ 0x00000022, 0x0000 },    /* R34    - Tone Generator 3 */
@@ -174,10 +171,10 @@ static const struct reg_default wm8997_reg_default[] = {
 	{ 0x00000062, 0x01FF },    /* R98    - Sample Rate Sequence Select 2 */
 	{ 0x00000063, 0x01FF },    /* R99    - Sample Rate Sequence Select 3 */
 	{ 0x00000064, 0x01FF },    /* R100   - Sample Rate Sequence Select 4 */
-	{ 0x00000068, 0x01FF },    /* R104   - AlwaysOn Triggers Seq Select 3 */
-	{ 0x00000069, 0x01FF },    /* R105   - AlwaysOn Triggers Seq Select 4 */
-	{ 0x0000006A, 0x01FF },    /* R106   - AlwaysOn Triggers Seq Select 5 */
-	{ 0x0000006B, 0x01FF },    /* R107   - AlwaysOn Triggers Seq Select 6 */
+	{ 0x00000068, 0x01FF },    /* R104   - Always On Triggers Sequence Select 3 */
+	{ 0x00000069, 0x01FF },    /* R105   - Always On Triggers Sequence Select 4 */
+	{ 0x0000006A, 0x01FF },    /* R106   - Always On Triggers Sequence Select 5 */
+	{ 0x0000006B, 0x01FF },    /* R107   - Always On Triggers Sequence Select 6 */
 	{ 0x00000070, 0x0000 },    /* R112   - Comfort Noise Generator */
 	{ 0x00000090, 0x0000 },    /* R144   - Haptics Control 1 */
 	{ 0x00000091, 0x7FFF },    /* R145   - Haptics Control 2 */
@@ -243,7 +240,6 @@ static const struct reg_default wm8997_reg_default[] = {
 	{ 0x0000029B, 0x0020 },    /* R667   - Headphone Detect 1 */
 	{ 0x000002A3, 0x1102 },    /* R675   - Mic Detect 1 */
 	{ 0x000002A4, 0x009F },    /* R676   - Mic Detect 2 */
-	{ 0x000002A5, 0x0000 },    /* R677   - Mic Detect 3 */
 	{ 0x000002C3, 0x0000 },    /* R707   - Mic noise mix control 1 */
 	{ 0x000002CB, 0x0000 },    /* R715   - Isolation control */
 	{ 0x000002D3, 0x0000 },    /* R723   - Jack detect analogue */
@@ -670,7 +666,6 @@ static const struct reg_default wm8997_reg_default[] = {
 	{ 0x00000C23, 0x0000 },    /* R3107  - Misc Pad Ctrl 4 */
 	{ 0x00000C24, 0x0000 },    /* R3108  - Misc Pad Ctrl 5 */
 	{ 0x00000D08, 0xFFFF },    /* R3336  - Interrupt Status 1 Mask */
-	{ 0x00000D09, 0xFFFF },    /* R3337  - Interrupt Status 2 Mask */
 	{ 0x00000D0A, 0xFFFF },    /* R3338  - Interrupt Status 3 Mask */
 	{ 0x00000D0B, 0xFFFF },    /* R3339  - Interrupt Status 4 Mask */
 	{ 0x00000D0C, 0xFEFF },    /* R3340  - Interrupt Status 5 Mask */
@@ -684,7 +679,6 @@ static const struct reg_default wm8997_reg_default[] = {
 	{ 0x00000D54, 0xFFFF },    /* R3412  - AOD IRQ Mask IRQ2 */
 	{ 0x00000D56, 0x0000 },    /* R3414  - Jack detect debounce */
 	{ 0x00000E00, 0x0000 },    /* R3584  - FX_Ctrl1 */
-	{ 0x00000E01, 0x0000 },    /* R3585  - FX_Ctrl2 */
 	{ 0x00000E10, 0x6318 },    /* R3600  - EQ1_1 */
 	{ 0x00000E11, 0x6300 },    /* R3601  - EQ1_2 */
 	{ 0x00000E12, 0x0FC8 },    /* R3602  - EQ1_3 */
@@ -788,8 +782,6 @@ static const struct reg_default wm8997_reg_default[] = {
 	{ 0x00000EF3, 0x0000 },    /* R3827  - ISRC 2 CTRL 1 */
 	{ 0x00000EF4, 0x0000 },    /* R3828  - ISRC 2 CTRL 2 */
 	{ 0x00000EF5, 0x0000 },    /* R3829  - ISRC 2 CTRL 3 */
-	{ 0x00001100, 0x0010 },    /* R4352  - DSP1 Control 1 */
-	{ 0x00001101, 0x0000 },    /* R4353  - DSP1 Clocking 1 */
 };
 
 static bool wm8997_readable_register(struct device *dev, unsigned int reg)
@@ -887,8 +879,6 @@ static bool wm8997_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_MIC_BIAS_CTRL_1:
 	case ARIZONA_MIC_BIAS_CTRL_2:
 	case ARIZONA_MIC_BIAS_CTRL_3:
-	case ARIZONA_HP_CTRL_1L:
-	case ARIZONA_HP_CTRL_1R:
 	case ARIZONA_ACCESSORY_DETECT_MODE_1:
 	case ARIZONA_HEADPHONE_DETECT_1:
 	case ARIZONA_HEADPHONE_DETECT_2:
@@ -1331,7 +1321,6 @@ static bool wm8997_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_INTERRUPT_STATUS_4:
 	case ARIZONA_INTERRUPT_STATUS_5:
 	case ARIZONA_INTERRUPT_STATUS_1_MASK:
-	case ARIZONA_INTERRUPT_STATUS_2_MASK:
 	case ARIZONA_INTERRUPT_STATUS_3_MASK:
 	case ARIZONA_INTERRUPT_STATUS_4_MASK:
 	case ARIZONA_INTERRUPT_STATUS_5_MASK:
@@ -1475,14 +1464,17 @@ static bool wm8997_volatile_register(struct device *dev, unsigned int reg)
 	switch (reg) {
 	case ARIZONA_SOFTWARE_RESET:
 	case ARIZONA_DEVICE_REVISION:
+	case ARIZONA_WRITE_SEQUENCER_CTRL_0:
+	case ARIZONA_WRITE_SEQUENCER_CTRL_1:
+	case ARIZONA_WRITE_SEQUENCER_CTRL_2:
 	case ARIZONA_HAPTICS_STATUS:
 	case ARIZONA_SAMPLE_RATE_1_STATUS:
 	case ARIZONA_SAMPLE_RATE_2_STATUS:
 	case ARIZONA_SAMPLE_RATE_3_STATUS:
 	case ARIZONA_ASYNC_SAMPLE_RATE_1_STATUS:
+	case ARIZONA_FLL1_NCO_TEST_0:
+	case ARIZONA_FLL2_NCO_TEST_0:
 	case ARIZONA_MIC_DETECT_3:
-	case ARIZONA_HP_CTRL_1L:
-	case ARIZONA_HP_CTRL_1R:
 	case ARIZONA_HEADPHONE_DETECT_2:
 	case ARIZONA_INPUT_ENABLES_STATUS:
 	case ARIZONA_OUTPUT_STATUS_1:
