@@ -1226,8 +1226,14 @@ pxa2xx_spi_acpi_get_pdata(struct platform_device *pdev)
 	ssp->pdev = pdev;
 
 	ssp->port_id = -1;
+
+	dev_info(&pdev->dev,"pxa2xx_spi_acpi_get_pdata : ssp->irq = %d\n",ssp->irq);
+
 	if (adev->pnp.unique_id && !kstrtoint(adev->pnp.unique_id, 0, &devid))
+		{
 		ssp->port_id = devid;
+		dev_info(&pdev->dev,"pxa2xx_spi_acpi_get_pdata : ssp->port_id via pnp.unique_id  = %d\n",ssp->port_id);
+		}
 
 	pdata->num_chipselect = 2;
 	pdata->enable_dma = true;
@@ -1265,6 +1271,7 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 
 	platform_info = dev_get_platdata(dev);
 	if (!platform_info) {
+		dev_info(&pdev->dev,"pxa2xx_spi_probe : no platform_info via dev_get_platdata()\n");
 		platform_info = pxa2xx_spi_acpi_get_pdata(pdev);
 		if (!platform_info) {
 			dev_err(&pdev->dev, "missing platform data\n");
@@ -1273,6 +1280,10 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	}
 
 	ssp = pxa_ssp_request(pdev->id, pdev->name);
+
+	if (!ssp)
+		dev_info(&pdev->dev,"no ssp via pxa_ssp_request(), using platform_info->ssp instead\n");
+
 	if (!ssp)
 		ssp = &platform_info->ssp;
 
@@ -1281,7 +1292,10 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* Allocate master with space for drv_data and null dma buffer */
+	dev_info(&pdev->dev,"ssp->type = %d\n",ssp->type);
+	dev_info(&pdev->dev,"ssp->port_id (master->bus_num) = %d\n",ssp->port_id);
+	dev_info(&pdev->dev,"platform_info->num_chipselect  = %d\n",platform_info->num_chipselect);
+
 	master = spi_alloc_master(dev, sizeof(struct driver_data) + 16);
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
