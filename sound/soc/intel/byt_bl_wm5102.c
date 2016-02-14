@@ -841,4 +841,4 @@ module_exit(snd_byt_driver_exit);*/
 MODULE_DESCRIPTION("ASoC Intel(R) Baytrail Machine driver");
 MODULE_AUTHOR("Omair Md Abdullah <omair.m.abdullah@intel.com>");
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("platform:bytwm5102-audio");
+MODULE_ALIAS("platform:byt_wm5102");
