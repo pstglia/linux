@@ -268,7 +268,8 @@ static struct acpi_device_id sst_acpi_match[] = {
 	{ "INT33C8", (unsigned long)&sst_acpi_haswell_desc },
 	{ "INT3438", (unsigned long)&sst_acpi_broadwell_desc },
 	{ "80860F28", (unsigned long)&sst_acpi_baytrail_desc },
-	{ "AMCR0F28", (unsigned long)&sst_acpi_baytrail_desc }
+	{ "AMCR0F28", (unsigned long)&sst_acpi_baytrail_desc },
+        { }
 };
 MODULE_DEVICE_TABLE(acpi, sst_acpi_match);
 
