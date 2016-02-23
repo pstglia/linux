@@ -18,6 +18,7 @@
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define DEBUG
 
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -703,6 +704,8 @@ static int sst_platform_probe(struct platform_device *pdev)
 	int ret;
 	struct sst_platform_data *pdata;
 
+	dev_dbg(&pdev->dev, "PST DEBUG - Inside sst_platform_probe\n");
+
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (drv == NULL) {
 		return -ENOMEM;
@@ -725,12 +728,18 @@ static int sst_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "registering soc platform failed\n");
 		return ret;
 	}
+	else {
+		dev_dbg(&pdev->dev, "PST DEBUG - snd_soc_register_platform OK\n");
+	}
 
 	ret = snd_soc_register_component(&pdev->dev, &sst_component,
 				sst_platform_dai, ARRAY_SIZE(sst_platform_dai));
 	if (ret) {
 		dev_err(&pdev->dev, "registering cpu dais failed\n");
 		snd_soc_unregister_platform(&pdev->dev);
+	}
+	else {
+		dev_dbg(&pdev->dev, "PST DEBUG - snd_soc_register_component OK\n");
 	}
 	return ret;
 }

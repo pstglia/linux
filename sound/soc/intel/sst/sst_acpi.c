@@ -18,6 +18,7 @@
  *
  */
 
+#define DEBUG
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
@@ -88,7 +89,7 @@ static const struct sst_info byt_fwparse_info = {
 };
 
 static const struct sst_ipc_info byt_ipc_info = {
-	.ipc_offset = 0,
+	.ipc_offset = 4,
 	.mbox_recv_off = 0x400,
 };
 
@@ -116,9 +117,9 @@ static const struct sst_res_info byt_rvp_res_info = {
 	.dram_size = 0x28000,
 	.mbox_offset = 0x144000,
 	.mbox_size = 0x1000,
-	.acpi_lpe_res_index = 0,
+	.acpi_lpe_res_index = 1,
 	.acpi_ddr_index = 2,
-	.acpi_ipc_irq_index = 5,
+	.acpi_ipc_irq_index = 0,
 };
 
 static struct sst_platform_info byt_rvp_platform_data = {
@@ -256,9 +257,13 @@ static int sst_acpi_probe(struct platform_device *pdev)
 	struct platform_device *plat_dev;
 	unsigned int dev_id;
 
+	dev_dbg(dev, "PST DEBUG - Inside sst_acpi_probe - Before acpi_match_device \n");
+
 	id = acpi_match_device(dev->driver->acpi_match_table, dev);
-	if (!id)
+	if (!id) {
+		dev_dbg(dev, "PST DEBUG - Inside sst_acpi_probe - acpi_match_device failed \n");
 		return -ENODEV;
+	}
 	dev_dbg(dev, "for %s", id->id);
 
 	mach = (struct sst_machines *)id->driver_data;
@@ -344,6 +349,10 @@ static int sst_acpi_remove(struct platform_device *pdev)
 
 static struct sst_machines sst_acpi_bytcr[] = {
 	{"10EC5640", "T100", "bytt100_rt5640", NULL, "intel/fw_sst_0f28.bin",
+						&byt_rvp_platform_data },
+	{"WM510204", "LENOVO", "byt_wm5102", NULL, "intel/fw_sst_0f28.bin",
+						&byt_rvp_platform_data },
+	{"WM510205", "LENOVO", "byt_wm5102", NULL, "intel/fw_sst_0f28.bin",
 						&byt_rvp_platform_data },
 	{},
 };

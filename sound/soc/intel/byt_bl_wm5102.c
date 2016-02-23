@@ -22,6 +22,7 @@
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define DEBUG
 
 #include <linux/init.h>
 #include <linux/module.h>

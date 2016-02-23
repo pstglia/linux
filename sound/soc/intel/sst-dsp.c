@@ -14,6 +14,7 @@
  *
  */
 
+#define DEBUG
 #include <linux/slab.h>
 #include <linux/export.h>
 #include <linux/interrupt.h>
