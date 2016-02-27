@@ -5,3 +5,6 @@ obj-$(CONFIG_EARLY_PRINTK_INTEL_MID) += early_printk_intel_mid.o
 ifdef CONFIG_X86_INTEL_MID
 obj-$(CONFIG_SFI) += sfi.o device_libs/
 endif
+
+# WM5102 Plataform INIT
+obj-$(subst m,y,$(CONFIG_MFD_ARIZONA_SPI)) += platform_wm5102_spi.o
