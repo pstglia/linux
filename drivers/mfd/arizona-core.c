@@ -747,15 +747,15 @@ int arizona_dev_init(struct arizona *arizona)
 	arizona->pdata.irq_flags = IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING;
 
 	/* get the ACPI GpioInt ressource for this device */
-	if (ACPI_COMPANION(dev))
-		arizona->pdata.irq_gpio = acpi_dev_gpio_irq_get(ACPI_COMPANION(dev),
-								0);
-	else {
+//	if (ACPI_COMPANION(dev))
+//		arizona->pdata.irq_gpio = acpi_dev_gpio_irq_get(ACPI_COMPANION(dev),
+//								0);
+//	else {
 		/* ACPI _CRS value for WM510204:
 		 * arizona->pdata.irq_gpio = 0x04 ;
 		 */
 		arizona->pdata.irq_gpio = 134 ;
-	}
+//	}
 
 	dev_err(dev, "(ACPI) using irq_gpio GPIO = %i\n",arizona->pdata.irq_gpio);
 
