@@ -493,7 +493,7 @@ EXPORT_SYMBOL_GPL(arizona_pm_ops);
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id arizona_acpi_match[] = {
 	{
-		.id = "WM510205",
+		.id = "WM510204",
 		.driver_data = WM5102,
 	},
 	{},
@@ -692,8 +692,8 @@ int arizona_dev_init(struct arizona *arizona)
 	else
 		arizona_of_get_core_pdata(arizona);
 
-	arizona->pdata.ldoena = 405;
-	arizona->pdata.reset = 342;
+	arizona->pdata.ldoena = 125;
+	arizona->pdata.reset = 203;
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -751,10 +751,10 @@ int arizona_dev_init(struct arizona *arizona)
 		arizona->pdata.irq_gpio = acpi_dev_gpio_irq_get(ACPI_COMPANION(dev),
 								0);
 	else {
-		/* ACPI _CRS value for WM510205:
+		/* ACPI _CRS value for WM510204:
 		 * arizona->pdata.irq_gpio = 0x04 ;
 		 */
-		arizona->pdata.irq_gpio = 146 ;
+		arizona->pdata.irq_gpio = 134 ;
 	}
 
 	dev_err(dev, "(ACPI) using irq_gpio GPIO = %i\n",arizona->pdata.irq_gpio);
