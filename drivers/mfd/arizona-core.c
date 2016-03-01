@@ -680,6 +680,7 @@ int arizona_dev_init(struct arizona *arizona)
 	struct gpio_desc *desc;
 	const char *type_name;
 	unsigned int reg, val;
+	unsigned int try_count = 0;
 	int (*apply_patch)(struct arizona *) = NULL;
 	int ret, i;
 
@@ -694,6 +695,15 @@ int arizona_dev_init(struct arizona *arizona)
 
 	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 342;
+
+	/* remove kernel warnning to defer probe */
+	if (arizona->pdata.reset) {
+		ret = gpio_request(arizona->pdata.reset, "arizona /RESET");
+		if (ret!=0)
+			return -EPROBE_DEFER;
+		gpio_free(arizona->pdata.reset);
+	}
+
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -781,6 +791,8 @@ int arizona_dev_init(struct arizona *arizona)
 			dev_err(dev, "Failed to request /RESET: %d\n", ret);
 			goto err_dcvdd;
 		}
+	// according datasheet, 1us duration is enough
+	msleep(1);
 	}
 
 	ret = regulator_bulk_enable(arizona->num_core_supplies,
@@ -805,11 +817,20 @@ int arizona_dev_init(struct arizona *arizona)
 	regcache_cache_only(arizona->regmap, false);
 
 	/* Verify that this is a chip we know about */
-	ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
-	if (ret != 0) {
+	while(1) {
+		reg = 0x0;
+		ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
+		if (ret==0 && (reg==0x5102 || reg==0x5110 || reg ==0x8997))
+			break;
+		if (try_count>=3) {
+			goto err_reset;
+		}
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
-		goto err_reset;
+		try_count++;
+		msleep(1);
 	}
+	dev_info(arizona->dev, "Chip ID: 0x%x\n", reg);
+
 
 	switch (reg) {
 	case 0x5102:
