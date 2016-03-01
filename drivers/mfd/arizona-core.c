@@ -692,8 +692,8 @@ int arizona_dev_init(struct arizona *arizona)
 	else
 		arizona_of_get_core_pdata(arizona);
 
-	arizona->pdata.ldoena = 125;
-	arizona->pdata.reset = 203;
+	arizona->pdata.ldoena = 405;
+	arizona->pdata.reset = 342;
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -754,7 +754,7 @@ int arizona_dev_init(struct arizona *arizona)
 		/* ACPI _CRS value for WM510204:
 		 * arizona->pdata.irq_gpio = 0x04 ;
 		 */
-		arizona->pdata.irq_gpio = 134 ;
+		arizona->pdata.irq_gpio = 146 ;
 	}
 
 	dev_err(dev, "(ACPI) using irq_gpio GPIO = %i\n",arizona->pdata.irq_gpio);
