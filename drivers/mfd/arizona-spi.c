@@ -64,10 +64,13 @@ static int arizona_spi_probe(struct spi_device *spi)
 		}
 	}
 
+dev_err(&spi->dev, "PST DEBUG - type is %s\n",type);
+
 	switch (type) {
 #ifdef CONFIG_MFD_WM5102
 	case WM5102:
 		regmap_config = &wm5102_spi_regmap;
+		dev_err(&spi->dev, "PST DEBUG - wm5102_spi_regmap selected\n",type);
 		break;
 #endif
 #ifdef CONFIG_MFD_WM5110

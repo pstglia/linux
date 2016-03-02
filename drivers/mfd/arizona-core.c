@@ -823,7 +823,10 @@ int arizona_dev_init(struct arizona *arizona)
 		if (ret==0 && (reg==0x5102 || reg==0x5110 || reg ==0x8997))
 			break;
 		if (try_count>=3) {
-			goto err_reset;
+			//goto err_reset;
+			reg = 0x5102;
+			dev_info(arizona->dev, "PST DEBUG - chip id not detected - forcing Chip ID: 0x%x\n", reg);
+			break;
 		}
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
 		try_count++;
