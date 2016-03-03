@@ -901,6 +901,9 @@ int arizona_dev_init(struct arizona *arizona)
 	}
 	arizona->rev &= ARIZONA_DEVICE_REVISION_MASK;
 
+	// hardcode this one too
+	reg = 0x5102;
+
 	switch (reg) {
 #ifdef CONFIG_MFD_WM5102
 	case 0x5102:

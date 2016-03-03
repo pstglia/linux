@@ -64,7 +64,7 @@ static int arizona_spi_probe(struct spi_device *spi)
 		}
 	}
 
-dev_err(&spi->dev, "PST DEBUG - type is %s\n",type);
+dev_err(&spi->dev, "PST DEBUG - type is %d\n",type);
 
 	switch (type) {
 #ifdef CONFIG_MFD_WM5102
