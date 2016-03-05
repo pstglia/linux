@@ -139,7 +139,7 @@ MODULE_DEVICE_TABLE(spi, arizona_spi_ids);
 
 static const struct acpi_device_id arizona_acpi_match[] = {
 	{
-		.id = "WM510205",
+		.id = "WM510204",
 		.driver_data = WM5102,
 	},
 	{ },
