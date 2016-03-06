@@ -503,15 +503,12 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 {
     int ret = 0;
 	struct snd_soc_codec *codec = runtime->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_card *card = runtime->card;
 #ifdef CONFIG_SND_SOC_COMMS_SSP
 	struct byt_mc_private *ctx = snd_soc_card_get_drvdata(runtime->card);
 #endif
 
 	pr_info("Enter:%s\n", __func__);
-	/* Set codec bias level */
-	byt_set_bias_level(card, dapm, SND_SOC_BIAS_OFF);
 	card->dapm.idle_bias_off = true;
 
 #if 0
@@ -542,24 +539,12 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 	}
 #endif /* CONFIG_SND_SOC_COMMS_SSP */
 
-	/* Keep the voice call paths active during
-	suspend. Mark the end points ignore_suspend */
-	snd_soc_dapm_ignore_suspend(dapm, "HPOUT1L");
-	snd_soc_dapm_ignore_suspend(dapm, "HPOUT1R");
-	snd_soc_dapm_ignore_suspend(dapm, "SPKOUTLP");
-	snd_soc_dapm_ignore_suspend(dapm, "SPKOUTLN");
-	snd_soc_dapm_ignore_suspend(dapm, "SPKOUTRP");
-	snd_soc_dapm_ignore_suspend(dapm, "SPKOUTRN");
-
-    snd_soc_dapm_ignore_suspend(dapm, "AIF2 Playback");
-    snd_soc_dapm_ignore_suspend(dapm, "AIF2 Capture");
     snd_soc_dapm_ignore_suspend(&card->dapm, "Ext Spk");
 
     snd_soc_dapm_ignore_suspend(&card->dapm, "Headset Mic");
     snd_soc_dapm_ignore_suspend(&card->dapm, "Headphone");
     snd_soc_dapm_ignore_suspend(&card->dapm, "Int Mic");
 
-	snd_soc_dapm_sync(dapm);
     pr_info("exit %s\n", __func__);
 
 	return ret;
