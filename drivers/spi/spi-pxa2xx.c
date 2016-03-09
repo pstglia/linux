@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+#define DEBUG
 #include <linux/bitops.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -1456,6 +1456,16 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 	ssp->pdev = pdev;
 	ssp->port_id = pxa2xx_spi_get_port_id(adev);
 
+	dev_info(&pdev->dev," ssp->clk: %d", ssp->clk);
+	dev_info(&pdev->dev," ssp->irq: %d", ssp->irq);
+	dev_info(&pdev->dev," ssp->type: %d", ssp->type);
+	dev_info(&pdev->dev," ssp->port_id: %d", ssp->port_id);
+
+	if (ssp->port_id < 0) {
+		dev_info(&pdev->dev," Forcing port_id to 1", ssp->clk);
+		ssp->port_id = 1;
+	}
+
 	pdata->num_chipselect = 1;
 	pdata->enable_dma = true;
 
@@ -1588,6 +1598,9 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 			dev_dbg(dev, "no DMA channels available, using PIO\n");
 			platform_info->enable_dma = false;
 		}
+	}
+	else {
+		dev_info(&pdev->dev," platform_info->enable_dma is false - Using PIO");
 	}
 
 	/* Enable SOC clock */
