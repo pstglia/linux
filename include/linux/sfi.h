@@ -88,6 +88,9 @@
 #define SFI_GET_NUM_ENTRIES(ptable, entry_type) \
 	((ptable->header.len - sizeof(struct sfi_table_header)) / \
 	(sizeof(entry_type)))
+
+#define SPID_FRU_SIZE   10
+
 /*
  * Table structures must be byte-packed to match the SFI specification,
  * as they are provided by the BIOS.
