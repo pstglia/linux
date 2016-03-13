@@ -1865,7 +1865,7 @@ int spi_register_master(struct spi_master *master)
 
 	/* Register devices from the device tree and ACPI */
 	of_register_spi_devices(master);
-	acpi_register_spi_devices(master);
+	//acpi_register_spi_devices(master);
 done:
 	return status;
 }
