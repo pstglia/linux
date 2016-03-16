@@ -18,6 +18,7 @@
  *
  */
 
+#define DEBUG
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
@@ -279,14 +280,16 @@ static int sst_acpi_probe(struct platform_device *pdev)
 	plat_dev = platform_device_register_data(dev, mach->pdata->platform, -1, NULL, 0);
 	if (IS_ERR(plat_dev)) {
 		dev_err(dev, "Failed to create machine device: %s\n", mach->pdata->platform);
-		return PTR_ERR(plat_dev);
+		dev_err(dev, "PSTGLIA - Ignoring (1)");
+		//return PTR_ERR(plat_dev);
 	}
 
 	/* Create platform device for sst machine driver */
 	mdev = platform_device_register_data(dev, mach->machine, -1, NULL, 0);
 	if (IS_ERR(mdev)) {
 		dev_err(dev, "Failed to create machine device: %s\n", mach->machine);
-		return PTR_ERR(mdev);
+		dev_err(dev, "PSTGLIA - Ignoring (2)");
+		//return PTR_ERR(mdev);
 	}
 
 	ret = sst_alloc_drv_context(&ctx, dev, dev_id);
@@ -345,9 +348,9 @@ static int sst_acpi_remove(struct platform_device *pdev)
 static struct sst_machines sst_acpi_bytcr[] = {
 	{"10EC5640", "T100", "bytt100_rt5640", NULL, "intel/fw_sst_0f28.bin",
 						&byt_rvp_platform_data },
-	{"WM510204", "LENOVO", "byt_wm5102", NULL, "intel/fw_sst_0f28.bin",
+	{"WM510204", "LENOVO", "bytwm5102-audio", NULL, "intel/fw_sst_0f28.bin",
 						&byt_rvp_platform_data },
-	{"WM510205", "LENOVO", "byt_wm5102", NULL, "intel/fw_sst_0f28.bin",
+	{"WM510205", "LENOVO", "bytwm5102-audio", NULL, "intel/fw_sst_0f28.bin",
 						&byt_rvp_platform_data },
 	{},
 };
