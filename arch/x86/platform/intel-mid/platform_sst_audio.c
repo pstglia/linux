@@ -216,7 +216,8 @@ static void  populate_platform_data(void)
 	} else if ((INTEL_MID_BOARD(1, TABLET, CHT))) {
 		set_cht_platform_config();
 	} else {
-		pr_warn("Board not Supported\n");
+		pr_warn("Board not Supported/Detected - Forcing set_byt_platform_config\n");
+		set_byt_platform_config();
 	}
 }
 
