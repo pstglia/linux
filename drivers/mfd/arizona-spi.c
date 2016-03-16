@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
@@ -36,10 +37,13 @@ static int arizona_spi_probe(struct spi_device *spi)
 	else
 		type = id->driver_data;
 
+	dev_err(&spi->dev, "PST DEBUG - Type is %ld\n", type);
 	switch (type) {
 	case WM5102:
-		if (IS_ENABLED(CONFIG_MFD_WM5102))
+		if (IS_ENABLED(CONFIG_MFD_WM5102)) {
+			dev_err(&spi->dev, "PST DEBUG - regmap_config is %d\n", type);
 			regmap_config = &wm5102_spi_regmap;
+		}
 		break;
 	case WM5110:
 	case WM8280:
@@ -72,6 +76,8 @@ static int arizona_spi_probe(struct spi_device *spi)
 	arizona->type = type;
 	arizona->dev = &spi->dev;
 	arizona->irq = spi->irq;
+
+	dev_err(&spi->dev, "PST DEBUG - irq is %ld\n", spi->irq);	
 
 	return arizona_dev_init(arizona);
 }

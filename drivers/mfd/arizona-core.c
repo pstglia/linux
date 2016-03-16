@@ -809,7 +809,12 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 	int ret, i;
 	int count = 0;
 
+	dev_info(arizona->dev, "PST DEBUG - Inside arizona_of_get_core_pdata\n");
+
 	pdata->reset = arizona_of_get_named_gpio(arizona, "wlf,reset", true);
+	pdata->ldoena = arizona_of_get_named_gpio(arizona, "wlf,ldoena", true);
+
+	dev_info(arizona->dev, "PST DEBUG - arizona_of_get_core_pdata -  reset is %d ; ldoena is %d \n", pdata->reset, pdata->ldoena );
 
 	ret = of_property_read_u32_array(arizona->dev->of_node,
 					 "wlf,gpio-defaults",
@@ -965,6 +970,7 @@ int arizona_dev_init(struct arizona *arizona)
 	struct device *dev = arizona->dev;
 	const char *type_name;
 	unsigned int reg, val, mask;
+	unsigned int try_count = 0;
 	int (*apply_patch)(struct arizona *) = NULL;
 	const struct mfd_cell *subdevs = NULL;
 	int n_subdevs, ret, i;
@@ -977,6 +983,15 @@ int arizona_dev_init(struct arizona *arizona)
 		       sizeof(arizona->pdata));
 	else
 		arizona_of_get_core_pdata(arizona);
+
+	/* remove kernel warnning to defer probe */
+	if (arizona->pdata.reset) {
+		ret = gpio_request(arizona->pdata.reset, "arizona /RESET");
+	if (ret!=0)
+	return -EPROBE_DEFER;
+
+	gpio_free(arizona->pdata.reset);
+	}
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1038,6 +1053,8 @@ int arizona_dev_init(struct arizona *arizona)
 			dev_err(dev, "Failed to request /RESET: %d\n", ret);
 			goto err_dcvdd;
 		}
+		// according datasheet, 1us duration is enough
+		msleep(1);
 	}
 
 	ret = regulator_bulk_enable(arizona->num_core_supplies,
@@ -1059,11 +1076,19 @@ int arizona_dev_init(struct arizona *arizona)
 	regcache_cache_only(arizona->regmap, false);
 
 	/* Verify that this is a chip we know about */
-	ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
-	if (ret != 0) {
-		dev_err(dev, "Failed to read ID register: %d\n", ret);
+	while(1) {
+		reg = 0x0;
+		ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
+	if (ret==0 && (reg==0x5102 || reg==0x5110 || reg==0x6349 || reg==0x8997))
+		break;
+	if (try_count>=3) {
 		goto err_reset;
 	}
+	dev_err(dev, "Failed to read ID register (1): %d\n", ret);
+	try_count++;
+	msleep(1);
+	}
+	dev_info(arizona->dev, "Chip ID: 0x%x\n", reg);
 
 	switch (reg) {
 	case 0x5102:
