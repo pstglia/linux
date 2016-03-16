@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -1872,14 +1873,20 @@ static int wm5102_codec_probe(struct snd_soc_codec *codec)
 	struct wm5102_priv *priv = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
+	pr_debug("Inside wm5102_codec_probe\n");
+
 	ret = wm_adsp2_codec_probe(&priv->core.adsp[0], codec);
-	if (ret)
+	if (ret) {
+		pr_debug("Inside wm5102_codec_probe - wm_adsp2_codec_probe failed\n");
 		return ret;
+	}
 
 	ret = snd_soc_add_codec_controls(codec,
 					 arizona_adsp2_rate_controls, 1);
-	if (ret)
+	if (ret) {
+		pr_debug("Inside wm5102_codec_probe - snd_soc_add_codec_controls failed\n");
 		goto err_adsp2_codec_probe;
+	}
 
 	arizona_init_spk(codec);
 	arizona_init_gpio(codec);
@@ -1887,6 +1894,8 @@ static int wm5102_codec_probe(struct snd_soc_codec *codec)
 	snd_soc_dapm_disable_pin(dapm, "HAPTICS");
 
 	priv->core.arizona->dapm = dapm;
+
+	pr_debug("Inside wm5102_codec_probe - finished ok\n");
 
 	return 0;
 
@@ -1952,10 +1961,14 @@ static int wm5102_probe(struct platform_device *pdev)
 	struct wm5102_priv *wm5102;
 	int i, ret;
 
+	pr_debug("Inside wm5102_probe\n");
+
 	wm5102 = devm_kzalloc(&pdev->dev, sizeof(struct wm5102_priv),
 			      GFP_KERNEL);
-	if (wm5102 == NULL)
+	if (wm5102 == NULL) {
+		pr_debug("Inside wm5102_probe -  devm_kzalloc returned NULL\n");
 		return -ENOMEM;
+	}
 	platform_set_drvdata(pdev, wm5102);
 
 	mutex_init(&arizona->dac_comp_lock);
@@ -1974,9 +1987,13 @@ static int wm5102_probe(struct platform_device *pdev)
 	wm5102->core.adsp[0].mem = wm5102_dsp1_regions;
 	wm5102->core.adsp[0].num_mems = ARRAY_SIZE(wm5102_dsp1_regions);
 
+	pr_debug("Inside wm5102_probe - before wm_adsp2_init\n");
+
 	ret = wm_adsp2_init(&wm5102->core.adsp[0]);
-	if (ret != 0)
+	if (ret != 0) {
+		pr_debug("Inside wm5102_probe - before wm_adsp2_init\n");
 		return ret;
+	}
 
 	for (i = 0; i < ARRAY_SIZE(wm5102->fll); i++)
 		wm5102->fll[i].vco_mult = 1;
@@ -2005,6 +2022,7 @@ static int wm5102_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_idle(&pdev->dev);
 
+	pr_debug("Inside wm5102_probe - before snd_soc_register_codec\n");
 	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_wm5102,
 				      wm5102_dai, ARRAY_SIZE(wm5102_dai));
 }
