@@ -124,6 +124,14 @@ config REGULATOR_ARIZONA
 	  Support for the regulators found on Wolfson Arizona class
 	  devices.
 
+config REGULATOR_CRYSTAL_COVE
+        bool "Voltage regulator driver for CRYSTAL COVE PMIC"
+        ---help---
+           Select for the voltage regulator driver on CRYSTAL_COVE PMIC.
+           CRYSTAL COVE pmic is used in some variation of BYT platform.
+           Choose this if platform has CRYSTAL COVE pmic and you need
+           voltage regulator driver.
+
 config REGULATOR_AS3711
 	tristate "AS3711 PMIC"
 	depends on MFD_AS3711
