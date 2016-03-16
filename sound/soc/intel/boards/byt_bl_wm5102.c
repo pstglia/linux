@@ -798,7 +798,7 @@ MODULE_DEVICE_TABLE(acpi, byt_mc_acpi_ids);
 static struct platform_driver snd_byt_mc_driver = { //Done
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = "byt_wm5102",
+		.name = "bytwm5102-audio",
 		.pm = &snd_byt_mc_pm_ops,
 	//	.acpi_match_table = ACPI_PTR(byt_mc_acpi_ids),
 	},
