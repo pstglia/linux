@@ -984,6 +984,28 @@ int arizona_dev_init(struct arizona *arizona)
 	else
 		arizona_of_get_core_pdata(arizona);
 
+	// Checking returned values...
+	dev_info(arizona->dev, "PST DEBUG - Inside arizona_dev_init\n");
+	dev_info(arizona->dev, "PST DEBUG - ldoena is %d\n", arizona->pdata.ldoena);
+	dev_info(arizona->dev, "PST DEBUG - reset is %d\n", arizona->pdata.reset);
+	dev_info(arizona->dev, "PST DEBUG - clk32k_src is %d\n", arizona->pdata.clk32k_src);
+	dev_info(arizona->dev, "PST DEBUG - irq_gpio is %d\n", arizona->pdata.irq_gpio);
+	dev_info(arizona->dev, "PST DEBUG - irq_flags is %d\n", arizona->pdata.irq_flags);
+	dev_info(arizona->dev, "PST DEBUG - gpio_base is %d\n", arizona->pdata.gpio_base);
+	dev_info(arizona->dev, "PST DEBUG - micd_pol_gpio is %d\n", arizona->pdata.micd_pol_gpio);
+
+	if ( arizona->pdata.irq_gpio != 146 ) {
+		dev_info(arizona->dev, "PST DEBUG - irq_gpio is not 146 (%d) - replacing all...", arizona->pdata.irq_gpio);
+		arizona->pdata.irq_gpio = 146;
+		arizona->pdata.ldoena = 405;
+		arizona->pdata.reset = 342;
+		arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
+		arizona->pdata.gpio_base = 300;
+		arizona->pdata.micd_pol_gpio = 304 ;
+		
+	}
+	
+
 	/* remove kernel warnning to defer probe */
 	if (arizona->pdata.reset) {
 		ret = gpio_request(arizona->pdata.reset, "arizona /RESET");
