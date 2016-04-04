@@ -29,9 +29,9 @@ static struct regulator_consumer_supply dc1v8_consumers[] = {
 	REGULATOR_SUPPLY("DBVDD1", "2-001b"), /* wm5102 */
 	REGULATOR_SUPPLY("LDOVDD", "2-001b"),
 #endif
-	REGULATOR_SUPPLY("AVDD", "spi1.0"), /* wm5102 */
-	REGULATOR_SUPPLY("DBVDD1", "spi1.0"), /* wm5102 */
-	REGULATOR_SUPPLY("LDOVDD", "spi1.0"),
+	REGULATOR_SUPPLY("AVDD", "spi-WM510204:00"), /* wm5102 */
+	REGULATOR_SUPPLY("DBVDD1", "spi-WM510204:00"), /* wm5102 */
+	REGULATOR_SUPPLY("LDOVDD", "spi-WM510204:00"),
 	
 	REGULATOR_SUPPLY("DBVDD2", "wm5102-codec"),
 	REGULATOR_SUPPLY("DBVDD3", "wm5102-codec"),
@@ -41,7 +41,7 @@ static struct regulator_consumer_supply dc1v8_consumers[] = {
 #if 0
 	REGULATOR_SUPPLY("CPVDD", "2-001b"),
 #endif 
-	REGULATOR_SUPPLY("CPVDD", "spi1.0"),
+	REGULATOR_SUPPLY("CPVDD", "spi-WM510204:00"),
 };
 
 static struct regulator_init_data dc1v8_data = {
@@ -121,7 +121,9 @@ static int __init byt_audio_platform_init(void)
 		return 0;
 	}
 
+	pr_info("in %s - before platform_device_register\n", __func__);
 	platform_device_register(&dc1v8_device);
+	pr_info("in %s - after platform_device_register\n", __func__);
 
 #if 0
 	wm5102_board_info.platform_data = wm5102_platform_data(&wm5102_board_info);
