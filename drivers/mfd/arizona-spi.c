@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
