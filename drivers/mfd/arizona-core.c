@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/acpi.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -995,6 +996,8 @@ int arizona_dev_init(struct arizona *arizona)
 	const struct mfd_cell *subdevs = NULL;
 	int n_subdevs, ret, i;
 
+	struct gpio_desc *reset, *ldoena;
+
 	dev_set_drvdata(arizona->dev, arizona);
 	mutex_init(&arizona->clk_lock);
 
@@ -1006,6 +1009,31 @@ int arizona_dev_init(struct arizona *arizona)
 
 	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 342;
+	arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
+	arizona->pdata.gpio_base = 300;
+	arizona->pdata.micd_pol_gpio = 304 ;
+	arizona->pdata.clk32k_src = 2;
+
+	// Confirming reset and ldoena (again)
+	reset = devm_gpiod_get_optional(arizona->dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(reset)) {
+		ret = PTR_ERR(reset);
+		dev_err(arizona->dev, "Failed to get reset line: %d\n", ret);
+	}
+	else {
+		arizona->pdata.reset = desc_to_gpio(reset);
+		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.reset is now %d\n", arizona->pdata.reset);
+	}
+	ldoena = devm_gpiod_get_optional(arizona->dev, "ldoena", GPIOD_OUT_LOW);
+	if (IS_ERR(ldoena)) {
+		ret = PTR_ERR(ldoena);
+		dev_err(arizona->dev, "Failed to get ldoena line: %d\n", ret);
+	}
+	else {
+
+		arizona->pdata.ldoena = desc_to_gpio(ldoena);
+		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.ldoena is now %d\n", arizona->pdata.ldoena);
+	}
 
 	regcache_cache_only(arizona->regmap, true);
 
