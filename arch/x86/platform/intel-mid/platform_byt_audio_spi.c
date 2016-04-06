@@ -124,6 +124,7 @@ static int __init byt_audio_platform_init(void)
 	pr_info("in %s - before platform_device_register\n", __func__);
 	platform_device_register(&dc1v8_device);
 	pr_info("in %s - after platform_device_register\n", __func__);
+	return 0;
 
 #if 0
 	wm5102_board_info.platform_data = wm5102_platform_data(&wm5102_board_info);
