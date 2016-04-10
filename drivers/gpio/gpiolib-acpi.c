@@ -135,6 +135,8 @@ struct gpio_desc *acpi_get_gpiod(char *path, int pin)
 	if (!chip)
 		return ERR_PTR(-EPROBE_DEFER);
 
+	pr_info("chip->base is %d, pin is %d, path is %s", chip->base, pin, path);
+
 	offset = acpi_gpiochip_pin_to_gpio_offset(chip, pin);
 	if (offset < 0)
 		return ERR_PTR(offset);
