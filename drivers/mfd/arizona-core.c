@@ -994,7 +994,7 @@ int arizona_dev_init(struct arizona *arizona)
 	unsigned int reg, val, mask;
 	int (*apply_patch)(struct arizona *) = NULL;
 	const struct mfd_cell *subdevs = NULL;
-	int n_subdevs, ret, i;
+	int n_subdevs, ret, i, cont_loop;
 
 	struct gpio_desc *reset, *ldoena;
 
@@ -1015,15 +1015,26 @@ int arizona_dev_init(struct arizona *arizona)
 	arizona->pdata.clk32k_src = 2;
 
 	// Confirming reset and ldoena (again)
-	reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
-	if (IS_ERR(reset)) {
-		ret = PTR_ERR(reset);
-		dev_err(arizona->dev, "Failed to get reset line: %d\n", ret);
+	cont_loop = 0;
+	while (cont_loop < 5 ) {
+		reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
+		if (IS_ERR(reset)) {
+			ret = PTR_ERR(reset);
+			dev_err(arizona->dev, "Failed to get reset line: %d\n", ret);
+			if ( ret == -EPROBE_DEFER ) {
+				// Wait for gpio device init
+				msleep(100);
+			}
+
+		}
+		else {
+			arizona->pdata.reset = desc_to_gpio(reset);
+			dev_info(arizona->dev, "PST DEBUG - arizona->pdata.reset is now %d\n", arizona->pdata.reset);
+			break;
+		}
+		cont_loop++;
 	}
-	else {
-		arizona->pdata.reset = desc_to_gpio(reset);
-		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.reset is now %d\n", arizona->pdata.reset);
-	}
+
 	ldoena = acpi_get_gpiod("\\_SB.GPO1", 0x17);
 	if (IS_ERR(ldoena)) {
 		ret = PTR_ERR(ldoena);
