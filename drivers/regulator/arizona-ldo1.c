@@ -195,7 +195,8 @@ static int arizona_ldo1_of_get_pdata(struct arizona *arizona,
 	struct device_node *init_node, *dcvdd_node;
 	struct regulator_init_data *init_data;
 
-	pdata->ldoena = of_get_named_gpio(np, "wlf,ldoena", 0);
+	//pdata->ldoena = of_get_named_gpio(np, "wlf,ldoena", 0);
+	pdata->ldoena = 405;
 	if (pdata->ldoena < 0) {
 		dev_warn(arizona->dev,
 			 "LDOENA GPIO property missing/malformed: %d\n",
