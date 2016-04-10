@@ -1004,8 +1004,8 @@ int arizona_dev_init(struct arizona *arizona)
 	if (dev_get_platdata(arizona->dev))
 		memcpy(&arizona->pdata, dev_get_platdata(arizona->dev),
 		       sizeof(arizona->pdata));
-	else
-		arizona_of_get_core_pdata(arizona);
+	/*else
+		arizona_of_get_core_pdata(arizona);*/
 
 	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 342;
@@ -1015,7 +1015,7 @@ int arizona_dev_init(struct arizona *arizona)
 	arizona->pdata.clk32k_src = 2;
 
 	// Confirming reset and ldoena (again)
-	reset = devm_gpiod_get_optional(arizona->dev, "reset", GPIOD_OUT_LOW);
+	reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
 	if (IS_ERR(reset)) {
 		ret = PTR_ERR(reset);
 		dev_err(arizona->dev, "Failed to get reset line: %d\n", ret);
@@ -1024,7 +1024,7 @@ int arizona_dev_init(struct arizona *arizona)
 		arizona->pdata.reset = desc_to_gpio(reset);
 		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.reset is now %d\n", arizona->pdata.reset);
 	}
-	ldoena = devm_gpiod_get_optional(arizona->dev, "ldoena", GPIOD_OUT_LOW);
+	ldoena = acpi_get_gpiod("\\_SB.GPO1", 0x17);
 	if (IS_ERR(ldoena)) {
 		ret = PTR_ERR(ldoena);
 		dev_err(arizona->dev, "Failed to get ldoena line: %d\n", ret);
