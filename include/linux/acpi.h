@@ -764,6 +764,8 @@ static inline void acpi_dev_remove_driver_gpios(struct acpi_device *adev)
 		adev->driver_gpios = NULL;
 }
 
+struct gpio_desc *acpi_get_gpiod(char *path, int pin);
+
 int acpi_dev_gpio_irq_get(struct acpi_device *adev, int index);
 #else
 static inline int acpi_dev_add_driver_gpios(struct acpi_device *adev,
@@ -772,6 +774,8 @@ static inline int acpi_dev_add_driver_gpios(struct acpi_device *adev,
 	return -ENXIO;
 }
 static inline void acpi_dev_remove_driver_gpios(struct acpi_device *adev) {}
+
+static inline struct gpio_desc *acpi_get_gpiod(char *path, int pin) {}
 
 static inline int acpi_dev_gpio_irq_get(struct acpi_device *adev, int index)
 {

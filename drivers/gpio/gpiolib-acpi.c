@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/errno.h>
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
@@ -119,7 +120,7 @@ static inline int acpi_gpiochip_pin_to_gpio_offset(struct gpio_chip *chip,
  * controller does not have gpiochip registered at the moment. This is to
  * support probe deferral.
  */
-static struct gpio_desc *acpi_get_gpiod(char *path, int pin)
+struct gpio_desc *acpi_get_gpiod(char *path, int pin)
 {
 	struct gpio_chip *chip;
 	acpi_handle handle;
@@ -140,6 +141,7 @@ static struct gpio_desc *acpi_get_gpiod(char *path, int pin)
 
 	return gpiochip_get_desc(chip, offset);
 }
+EXPORT_SYMBOL_GPL(acpi_get_gpiod);
 
 static irqreturn_t acpi_gpio_irq_handler(int irq, void *data)
 {
