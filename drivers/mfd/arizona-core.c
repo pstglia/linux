@@ -995,6 +995,7 @@ int arizona_dev_init(struct arizona *arizona)
 	int (*apply_patch)(struct arizona *) = NULL;
 	const struct mfd_cell *subdevs = NULL;
 	int n_subdevs, ret, i, cont_loop;
+	unsigned int try_count = 0;
 
 	struct gpio_desc *reset, *ldoena;
 
@@ -1015,6 +1016,7 @@ int arizona_dev_init(struct arizona *arizona)
 	arizona->pdata.clk32k_src = 2;
 
 	// Confirming reset and ldoena (again)
+	/*
 	cont_loop = 0;
 	while (cont_loop < 5 ) {
 		reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
@@ -1043,8 +1045,10 @@ int arizona_dev_init(struct arizona *arizona)
 	else {
 
 		arizona->pdata.ldoena = desc_to_gpio(ldoena);
+		gpiod_direction_output(ldoena, 1);
 		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.ldoena is now %d\n", arizona->pdata.ldoena);
 	}
+	*/
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1117,24 +1121,15 @@ int arizona_dev_init(struct arizona *arizona)
 
 	if (arizona->pdata.reset) {
 		/* Start out with /RESET low to put the chip into reset */
-		ret = devm_gpio_request_one(arizona->dev, arizona->pdata.reset,
-					    GPIOF_DIR_OUT | GPIOF_INIT_LOW,
-					    "arizona /RESET");
-		if (ret != 0) {
-			/* try to get the reset GPIO pin, otherwise let it fail */
-			ret = 0;
-			desc = devm_gpiod_get(dev, "reset",
-					GPIOF_DIR_OUT | GPIOF_INIT_LOW);
-			if (!IS_ERR(desc))
-				arizona->pdata.reset = desc_to_gpio(desc);
-			else
-				ret = -1;
-		}
-
-		if (ret != 0) {
-			dev_err(dev, "Failed to request /RESET: %d\n", ret);
+		reset = devm_gpiod_get_optional(arizona->dev, "reset", GPIOD_OUT_LOW);
+		if (IS_ERR(reset)) {
+			ret = PTR_ERR(reset);
+			dev_err(arizona->dev, "Failed to get reset line: %d\n", ret);
 			goto err_dcvdd;
 		}
+		// according datasheet, 1us duration is enough
+		// pstglia: But, let's extend it just in case....
+		msleep(20);
 	}
 
 	ret = regulator_bulk_enable(arizona->num_core_supplies,
@@ -1156,11 +1151,20 @@ int arizona_dev_init(struct arizona *arizona)
 	regcache_cache_only(arizona->regmap, false);
 
 	/* Verify that this is a chip we know about */
-	ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
-	if (ret != 0) {
-		dev_err(dev, "Failed to read ID register: %d\n", ret);
-		goto err_reset;
-	}
+    while(1) {
+        reg = 0x0;
+        ret = regmap_read(arizona->regmap, ARIZONA_SOFTWARE_RESET, &reg);
+        if (ret==0 && (reg==0x5102 || reg==0x5110))
+            break;
+        if (try_count>=3) {
+                goto err_reset;
+        }
+        dev_err(dev, "Failed to read ID register: %d\n", ret);
+        try_count++;
+        msleep(1);
+    }
+    dev_info(arizona->dev, "Chip ID: 0x%x\n", reg);
+
 
 	switch (reg) {
 	case 0x5102:
