@@ -1591,6 +1591,9 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		goto out_error_master_alloc;
 	}
 
+	// Forcing PIO Mode
+	platform_info->enable_dma = false;
+
 	/* Setup DMA if requested */
 	if (platform_info->enable_dma) {
 		status = pxa2xx_spi_dma_setup(drv_data);
