@@ -1461,11 +1461,6 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 	dev_info(&pdev->dev," ssp->type: %d", ssp->type);
 	dev_info(&pdev->dev," ssp->port_id: %d", ssp->port_id);
 
-	if (ssp->port_id < 0) {
-		dev_info(&pdev->dev," Forcing port_id to 1", ssp->clk);
-		ssp->port_id = 1;
-	}
-
 	pdata->num_chipselect = 1;
 	pdata->enable_dma = true;
 
