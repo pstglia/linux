@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
 #include <linux/of.h>
+#include <linux/interrupt.h>
 
 #include <linux/mfd/arizona/core.h>
 
@@ -37,8 +38,19 @@ const struct acpi_gpio_mapping arizona_acpi_gpios[] = {
 };
 #endif
 
+// ldoena and reset values
+int ldoena = 405;
+int reset = 342;
+
+MODULE_PARM_DESC(ldoena, " LDOENA Value");
+module_param_named(ldoena, ldoena, int, 0444);
+
+MODULE_PARM_DESC(reset, " RESET Value");
+module_param_named(reset, reset, int, 0444);
+
 static int arizona_spi_probe(struct spi_device *spi)
 {
+	pr_info("Inside arizona_spi_probe");
 	const struct spi_device_id *id;
 	struct arizona *arizona;
 	const struct regmap_config *regmap_config = NULL;
@@ -110,6 +122,13 @@ static int arizona_spi_probe(struct spi_device *spi)
 	arizona->type = type;
 	arizona->dev = &spi->dev;
 	arizona->irq = spi->irq;
+
+        arizona->pdata.ldoena = ldoena;
+        arizona->pdata.reset = reset;
+        arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
+        arizona->pdata.gpio_base = 300;
+        arizona->pdata.micd_pol_gpio = 304;
+        arizona->pdata.clk32k_src = 2;
 
 	return arizona_dev_init(arizona);
 }

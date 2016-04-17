@@ -1007,14 +1007,17 @@ int arizona_dev_init(struct arizona *arizona)
 	/*else
 		arizona_of_get_core_pdata(arizona);*/
 
+	/*
 	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 342;
 	arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
 	arizona->pdata.gpio_base = 300;
 	arizona->pdata.micd_pol_gpio = 304 ;
 	arizona->pdata.clk32k_src = 2;
+	*/
 
 	// Confirming reset and ldoena (again)
+	/*
 	cont_loop = 0;
 	while (cont_loop < 5 ) {
 		reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
@@ -1045,6 +1048,7 @@ int arizona_dev_init(struct arizona *arizona)
 		arizona->pdata.ldoena = desc_to_gpio(ldoena);
 		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.ldoena is now %d\n", arizona->pdata.ldoena);
 	}
+	*/
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1161,6 +1165,9 @@ int arizona_dev_init(struct arizona *arizona)
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
 		goto err_reset;
 	}
+
+	msleep(10);
+	pr_info("WM5102_QUEST|ldoena is %d|reset is %d|reg is %x\n", arizona->pdata.ldoena, arizona->pdata.reset, reg) ;
 
 	switch (reg) {
 	case 0x5102:
