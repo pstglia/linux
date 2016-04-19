@@ -1007,14 +1007,16 @@ int arizona_dev_init(struct arizona *arizona)
 	/*else
 		arizona_of_get_core_pdata(arizona);*/
 
+	arizona->pdata.irq_gpio = 146 ;
 	arizona->pdata.ldoena = 405;
-	arizona->pdata.reset = 342;
+	arizona->pdata.reset = 246;
 	arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
 	arizona->pdata.gpio_base = 300;
 	arizona->pdata.micd_pol_gpio = 304 ;
 	arizona->pdata.clk32k_src = 2;
 
 	// Confirming reset and ldoena (again)
+	/*
 	cont_loop = 0;
 	while (cont_loop < 5 ) {
 		reset = acpi_get_gpiod("\\_SB.I2C7.PMIC", 3);
@@ -1045,6 +1047,7 @@ int arizona_dev_init(struct arizona *arizona)
 		arizona->pdata.ldoena = desc_to_gpio(ldoena);
 		dev_info(arizona->dev, "PST DEBUG - arizona->pdata.ldoena is now %d\n", arizona->pdata.ldoena);
 	}
+	*/
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1097,7 +1100,7 @@ int arizona_dev_init(struct arizona *arizona)
 		goto err_early;
 	}
 
-#ifdef CONFIG_ACPI
+#if 0
 	arizona->pdata.irq_flags = IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING;
 
 	/* get the ACPI GpioInt ressource for this device */
@@ -1111,7 +1114,7 @@ int arizona_dev_init(struct arizona *arizona)
 		arizona->pdata.irq_gpio = 146 ;
 	}
 
-	dev_err(dev, "(ACPI) using irq_gpio GPIO = %i\n",arizona->pdata.irq_gpio);
+	dev_err(dev, "(ACPI) using irq_gpio GPIO = %d\n",arizona->pdata.irq_gpio);
 
 #endif
 
@@ -1120,13 +1123,18 @@ int arizona_dev_init(struct arizona *arizona)
 		ret = devm_gpio_request_one(arizona->dev, arizona->pdata.reset,
 					    GPIOF_DIR_OUT | GPIOF_INIT_LOW,
 					    "arizona /RESET");
+		msleep(200);
 		if (ret != 0) {
+			dev_err(dev, "PST DEBUG - devm_gpio_request_one (/RESET) failed - trying devm_gpiod_get");
 			/* try to get the reset GPIO pin, otherwise let it fail */
 			ret = 0;
 			desc = devm_gpiod_get(dev, "reset",
 					GPIOF_DIR_OUT | GPIOF_INIT_LOW);
-			if (!IS_ERR(desc))
+			msleep(200);
+			if (!IS_ERR(desc)) {
 				arizona->pdata.reset = desc_to_gpio(desc);
+				pr_info("PST DEBUG - after devm_gpiod_get, arizona->pdata.reset is %d\n", arizona->pdata.reset);
+			}
 			else
 				ret = -1;
 		}
@@ -1161,6 +1169,8 @@ int arizona_dev_init(struct arizona *arizona)
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
 		goto err_reset;
 	}
+	msleep(200);
+	pr_info("WM5102_QUEST|ldoena is %d|reset is %d|reg is %x\n", arizona->pdata.ldoena, arizona->pdata.reset, reg) ;
 
 	switch (reg) {
 	case 0x5102:
