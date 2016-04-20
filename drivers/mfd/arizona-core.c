@@ -761,9 +761,11 @@ static int arizona_resume(struct device *dev)
 #endif
 
 const struct dev_pm_ops arizona_pm_ops = {
+	/*
 	SET_RUNTIME_PM_OPS(arizona_runtime_suspend,
 			   arizona_runtime_resume,
 			   NULL)
+	*/
 	SET_SYSTEM_SLEEP_PM_OPS(arizona_suspend, arizona_resume)
 #ifdef CONFIG_PM_SLEEP
 	.suspend_late = arizona_suspend_late,
@@ -1499,8 +1501,8 @@ int arizona_dev_init(struct arizona *arizona)
 	if (ret != 0)
 		goto err_reset;
 
-	pm_runtime_set_autosuspend_delay(arizona->dev, 100);
-	pm_runtime_use_autosuspend(arizona->dev);
+	//pm_runtime_set_autosuspend_delay(arizona->dev, 100);
+	//pm_runtime_use_autosuspend(arizona->dev);
 
 	arizona_request_irq(arizona, ARIZONA_IRQ_CLKGEN_ERR, "CLKGEN error",
 			    arizona_clkgen_err, arizona);
