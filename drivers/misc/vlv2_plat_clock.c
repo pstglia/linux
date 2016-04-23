@@ -19,6 +19,7 @@
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
  */
 
+#define DEBUG
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
