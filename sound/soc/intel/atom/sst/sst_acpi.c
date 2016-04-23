@@ -89,7 +89,7 @@ static const struct sst_info byt_fwparse_info = {
 };
 
 static const struct sst_ipc_info byt_ipc_info = {
-	.ipc_offset = 4,
+	.ipc_offset = 0,
 	.mbox_recv_off = 0x400,
 };
 
@@ -117,9 +117,9 @@ static const struct sst_res_info byt_rvp_res_info = {
 	.dram_size = 0x28000,
 	.mbox_offset = 0x144000,
 	.mbox_size = 0x1000,
-	.acpi_lpe_res_index = 1,
+	.acpi_lpe_res_index = 0,
 	.acpi_ddr_index = 2,
-	.acpi_ipc_irq_index = 0,
+	.acpi_ipc_irq_index = 5,
 };
 
 static struct sst_platform_info byt_rvp_platform_data = {
@@ -347,10 +347,6 @@ static int sst_acpi_remove(struct platform_device *pdev)
 
 static struct sst_machines sst_acpi_bytcr[] = {
 	{"10EC5640", "T100", "bytt100_rt5640", NULL, "intel/fw_sst_0f28.bin",
-						&byt_rvp_platform_data },
-	{"WM510204", "LENOVO", "bytwm5102-audio", NULL, "intel/fw_sst_0f28.bin",
-						&byt_rvp_platform_data },
-	{"WM510205", "LENOVO", "bytwm5102-audio", NULL, "intel/fw_sst_0f28.bin",
 						&byt_rvp_platform_data },
 	{},
 };
