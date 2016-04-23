@@ -19,6 +19,7 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
+#define DEBUG
 #include <linux/pci.h>
 #include <linux/firmware.h>
 #include <linux/sched.h>
@@ -111,7 +112,7 @@ int sst_alloc_stream_mrfld(struct intel_sst_drv *sst_drv_ctx, void *params)
 			&alloc_param, data, true, true, false, true);
 
 	if (ret < 0) {
-		dev_err(sst_drv_ctx->dev, "FW alloc failed ret %d\n", ret);
+		dev_err(sst_drv_ctx->dev, "(1) FW alloc failed ret %d\n", ret);
 		/* alloc failed, so reset the state to uninit */
 		str_info->status = STREAM_UN_INIT;
 		str_id = ret;
@@ -120,7 +121,7 @@ int sst_alloc_stream_mrfld(struct intel_sst_drv *sst_drv_ctx, void *params)
 		ret = response->str_type.result;
 		if (!ret)
 			goto out;
-		dev_err(sst_drv_ctx->dev, "FW alloc failed ret %d\n", ret);
+		dev_err(sst_drv_ctx->dev, "(2) FW alloc failed ret %d\n", ret);
 		if (ret == SST_ERR_STREAM_IN_USE) {
 			dev_err(sst_drv_ctx->dev,
 				"FW not in clean state, send free for:%d\n", str_id);

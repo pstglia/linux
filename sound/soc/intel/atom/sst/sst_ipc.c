@@ -19,6 +19,7 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
+#define DEBUG
 #include <linux/pci.h>
 #include <linux/firmware.h>
 #include <linux/sched.h>

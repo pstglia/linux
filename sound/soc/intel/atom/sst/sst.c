@@ -19,6 +19,7 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
+#define DEBUG
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>

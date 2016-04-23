@@ -22,6 +22,7 @@
  *  This file contains all dsp controlling functions like firmware download,
  * setting/resetting dsp cores, etc
  */
+#define DEBUG
 #include <linux/pci.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
@@ -442,7 +443,7 @@ int sst_load_fw(struct intel_sst_drv *sst_drv_ctx)
 
 	ret_val = sst_wait_timeout(sst_drv_ctx, block);
 	if (ret_val) {
-		dev_err(sst_drv_ctx->dev, "fw download failed %d\n" , ret_val);
+		dev_err(sst_drv_ctx->dev, "sst_load_fw - fw download failed %d\n" , ret_val);
 		/* FW download failed due to timeout */
 		ret_val = -EBUSY;
 

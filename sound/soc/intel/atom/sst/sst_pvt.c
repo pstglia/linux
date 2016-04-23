@@ -19,6 +19,7 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
+#define DEBUG
 #include <linux/kobject.h>
 #include <linux/pci.h>
 #include <linux/fs.h>
