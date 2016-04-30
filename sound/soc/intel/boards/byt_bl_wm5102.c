@@ -150,6 +150,13 @@ static const struct snd_soc_dapm_route byt_audio_map[] = {
 	{"IN3L", NULL, "Int Mic"},
 };
 
+static const struct snd_kcontrol_new byt_mc_controls[] = {
+        SOC_DAPM_PIN_SWITCH("Headphone"),
+        SOC_DAPM_PIN_SWITCH("Headset Mic"),
+        SOC_DAPM_PIN_SWITCH("Int Mic"),
+        SOC_DAPM_PIN_SWITCH("Ext Spk"),
+};
+
 static int open_aif_clk=0;
 struct mutex reg_fll_lock;
 static int byt_config_5102_clks(struct snd_soc_codec *wm5102_codec, int sr)
@@ -720,6 +727,8 @@ static struct snd_soc_card snd_soc_card_byt = {
 	.num_dapm_widgets = ARRAY_SIZE(byt_dapm_widgets),
 	.dapm_routes = byt_audio_map,
 	.num_dapm_routes = ARRAY_SIZE(byt_audio_map),
+	.controls = byt_mc_controls,
+	.num_controls = ARRAY_SIZE(byt_mc_controls),
 };
 
 static int snd_byt_mc_probe(struct platform_device *pdev)
