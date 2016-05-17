@@ -38,6 +38,7 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include "../atom/sst-atom-controls.h"
 #include <sound/jack.h>
 #include <linux/mfd/arizona/registers.h>
 #include <linux/lnw_gpio.h>
@@ -148,6 +149,14 @@ static const struct snd_soc_dapm_route byt_audio_map[] = {
 	{"IN1L", NULL, "Headset Mic"},
 	{"Int Mic", NULL, "MICBIAS3"},
 	{"IN3L", NULL, "Int Mic"},
+
+	{"AIF1 Playback", NULL, "ssp2 Tx"},
+	{"ssp2 Tx", NULL, "codec_out0"},
+	{"ssp2 Tx", NULL, "codec_out1"},
+	{"codec_in0", NULL, "ssp2 Rx"},
+	{"codec_in1", NULL, "ssp2 Rx"},
+	{"ssp2 Rx", NULL, "AIF1 Capture"},
+
 };
 
 static const struct snd_kcontrol_new byt_mc_controls[] = {
@@ -278,6 +287,32 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
     pr_info("enter %s\n", __func__);
 	return byt_config_5102_clks(rtd->codec, params_rate(params));
 }
+
+static const struct snd_soc_pcm_stream byt_dai_params = {
+	.formats = SNDRV_PCM_FMTBIT_S24_LE,
+	.rate_min = 48000,
+	.rate_max = 48000,
+	.channels_min = 2,
+	.channels_max = 2,
+};
+
+static int byt_codec_fixup(struct snd_soc_pcm_runtime *rtd,
+			    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+			SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	/* The DSP will covert the FE rate to 48k, stereo, 24bits */
+	rate->min = rate->max = 48000;
+	channels->min = channels->max = 2;
+
+	/* set SSP2 to 24-bit */
+	params_set_format(params, SNDRV_PCM_FORMAT_S24_LE);
+	return 0;
+}
+
 
 static int byt_aif2_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -569,9 +604,8 @@ static struct snd_pcm_hw_constraint_list constraints_48000 = {
 
 static int byt_aif1_startup(struct snd_pcm_substream *substream)
 {
-	return snd_pcm_hw_constraint_list(substream->runtime, 0,
-			SNDRV_PCM_HW_PARAM_RATE,
-			&constraints_48000);
+	return snd_pcm_hw_constraint_single(substream->runtime,
+			SNDRV_PCM_HW_PARAM_RATE, 48000);
 }
 
 static struct snd_soc_ops byt_aif1_ops = {
@@ -598,71 +632,50 @@ static struct snd_soc_ops byt_comms_dai_link_ops = {
 };
 #endif /* CONFIG_SND_SOC_COMMS_SSP */
 
+
+static struct snd_soc_ops byt_be_ssp2_ops = {
+	.hw_params = byt_aif1_hw_params,
+};
+
 static struct snd_soc_dai_link byt_dailink[] = {
-	[BYT_AUD_AIF1] = {
-		.name = "Baytrail Audio",
-		.stream_name = "Audio",
+	[MERR_DPCM_AUDIO] = {
+		.name = "Baytrail Audio Port",
+		.stream_name = "Baytrail Audio",
 		.cpu_dai_name = "media-cpu-dai",
-		.codec_dai_name = "wm5102-aif1",
-		.codec_name = "wm5102-codec",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
 		.platform_name = "sst-mfld-platform",
-		.dai_fmt	= SND_SOC_DAIFMT_I2S
-			| SND_SOC_DAIFMT_NB_NF
-			| SND_SOC_DAIFMT_CBS_CFS,
-		.init = byt_init,
 		.ignore_suspend = 1,
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
 		.ops = &byt_aif1_ops,
 	},
-	[BYT_AUD_AIF2] = {
-		.name = "Baytrail Voice",
-		.stream_name = "Voice",
-		.cpu_dai_name = "Voice-cpu-dai",
-		.codec_dai_name = "wm5102-aif2",
-		.codec_name = "wm5102-codec",
-		.platform_name = "sst-mfld-platform",
-		.dai_fmt	= SND_SOC_DAIFMT_I2S
-			| SND_SOC_DAIFMT_NB_NF
-			| SND_SOC_DAIFMT_CBS_CFS,
-		.init = NULL,
-		.ignore_suspend = 1,
-		.ops = &byt_aif2_ops,
-	},
-	[BYT_AUD_COMPR_DEV] = {
-		.name = "Baytrail Compressed Audio",
-		.stream_name = "Compress",
+	[MERR_DPCM_COMPR] = {
+		.name = "Baytrail Compressed Port",
+		.stream_name = "Baytrail Compress",
 		.cpu_dai_name = "compress-cpu-dai",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.platform_name = "sst-mfld-platform",
+	},
+		/* back ends */
+	{
+		.name = "SSP2-Codec",
+		.be_id = 1,
+		.cpu_dai_name = "ssp2-port",
+		.platform_name = "sst-mfld-platform",
+		.no_pcm = 1,
 		.codec_dai_name = "wm5102-aif1",
 		.codec_name = "wm5102-codec",
-		.platform_name = "sst-mfld-platform",
-		.dai_fmt	= SND_SOC_DAIFMT_I2S
-			| SND_SOC_DAIFMT_NB_NF
-			| SND_SOC_DAIFMT_CBS_CFS,
-		.init = NULL,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBS_CFS,
+		.be_hw_params_fixup = byt_codec_fixup,
 		.ignore_suspend = 1,
-		.compr_ops = &byt_compr_ops,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.ops = &byt_be_ssp2_ops,
 	},
-#ifdef CONFIG_SND_SOC_COMMS_SSP
-	[BYT_COMMS_BT] = {
-		.name = "Baytrail Comms BT SCO",
-		.stream_name = "BYT_BTSCO",
-		.cpu_dai_name = SSP_BT_DAI_NAME,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.platform_name = "mid-ssp-dai",
-		.init = NULL,
-		.ops = &byt_comms_dai_link_ops,
-	},
-	[BYT_COMMS_MODEM] = {
-		.name = "Baytrail Comms MODEM",
-		.stream_name = "BYT_MODEM_MIXING",
-		.cpu_dai_name = SSP_MODEM_DAI_NAME,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.platform_name = "mid-ssp-dai",
-		.init = NULL,
-		.ops = &byt_comms_dai_link_ops,
-	},
-#endif /* CONFIG_SND_SOC_COMMS_SSP */
 };
 
 #ifdef CONFIG_PM_SLEEP
