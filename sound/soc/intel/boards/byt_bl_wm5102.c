@@ -554,14 +554,12 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 	pr_info("Enter:%s\n", __func__);
 	card->dapm.idle_bias_off = true;
 
-#if 0
 	ret = snd_soc_add_card_controls(card, byt_mc_controls,
 					ARRAY_SIZE(byt_mc_controls));
 	if (ret) {
 		pr_err("unable to add card controls\n");
 		return ret;
 	}
-#endif
 
 #ifdef CONFIG_SND_SOC_COMMS_SSP
 	/* Add Comms specific controls */
@@ -610,8 +608,6 @@ static int byt_aif1_startup(struct snd_pcm_substream *substream)
 
 static struct snd_soc_ops byt_aif1_ops = {
 	.startup = byt_aif1_startup,
-	.hw_params = byt_aif1_hw_params,
-	.hw_free = byt_aif1_free,
 };
 
 static struct snd_soc_ops byt_aif2_ops = {
@@ -674,6 +670,7 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.ignore_suspend = 1,
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
+                .init = byt_init,
 		.ops = &byt_be_ssp2_ops,
 	},
 };
@@ -734,7 +731,7 @@ static struct snd_soc_card snd_soc_card_byt = {
 	.name = "baytrailaudio",
 	.dai_link = byt_dailink,
 	.num_links = ARRAY_SIZE(byt_dailink),
-	.late_probe = snd_byt_mc_late_probe,
+	//.late_probe = snd_byt_mc_late_probe,
 	.set_bias_level = byt_set_bias_level,
 	.dapm_widgets = byt_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(byt_dapm_widgets),
