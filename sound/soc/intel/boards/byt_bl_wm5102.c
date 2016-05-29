@@ -31,7 +31,8 @@
 #include <linux/device.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
-#include <linux/vlv2_plat_clock.h>
+//#include <linux/vlv2_plat_clock.h> //don't use this in Lollipop, use pmc
+#include <asm/intel_soc_pmc.h>
 #include <linux/extcon-mid.h>
 #include <linux/pm_runtime.h>
 #include <asm/platform_byt_audio.h>
@@ -42,6 +43,7 @@
 #include <linux/mfd/arizona/registers.h>
 #include <linux/lnw_gpio.h>
 #include "../../codecs/wm5102.h"
+#include <linux/delay.h>
 
 #ifdef CONFIG_SND_SOC_COMMS_SSP
 #include "byt_bl_rt5642.h"
@@ -174,7 +176,7 @@ static int byt_config_5102_clks(struct snd_soc_codec *wm5102_codec, int sr)
     mutex_unlock(&reg_fll_lock);
 
 	/*Open MCLK before Set Codec CLK*/
-    vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_ON);
+    pmc_pc_configure(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_ON);
 	/*reset FLL1*/
 	snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1_REFCLK,
 				ARIZONA_FLL_SRC_NONE, 0, 0);
@@ -218,7 +220,8 @@ static int byt_free_5102_clks(struct snd_soc_codec *codec)
     pr_info("%s: open_aif_clk: %d\n", __func__, open_aif_clk);
 
     mutex_lock(&reg_fll_lock);
-    open_aif_clk--;
+    if (open_aif_clk > 0)
+      open_aif_clk--;
     if (open_aif_clk > 0) {
         mutex_unlock(&reg_fll_lock);
         return 0;
@@ -232,7 +235,7 @@ static int byt_free_5102_clks(struct snd_soc_codec *codec)
         ARIZONA_FLL_SRC_NONE, 0, 0);
 
 	/*Open MCLK before Set Codec CLK*/
-    vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_OFF);
+    pmc_pc_configure(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_OFF);
     return 0;
 }
 
@@ -574,6 +577,25 @@ static int byt_aif1_startup(struct snd_pcm_substream *substream)
 			&constraints_48000);
 }
 
+static int byt_aif2_startup(struct snd_pcm_substream *substream)
+{
+        struct snd_soc_pcm_runtime *rtd = substream->private_data;
+        struct snd_soc_dai *codec_dai = rtd->codec_dai;
+
+        printk("byt_aif2_startup()\n");
+        snd_soc_dai_set_tristate(codec_dai, 0);
+        return 0;
+}
+
+static void byt_aif2_shutdown(struct snd_pcm_substream *substream)
+{
+        struct snd_soc_pcm_runtime *rtd = substream->private_data;
+        struct snd_soc_dai *codec_dai = rtd->codec_dai;
+
+        printk("byt_aif2_shutdown()\n");
+        snd_soc_dai_set_tristate(codec_dai, 1);
+}
+
 static struct snd_soc_ops byt_aif1_ops = {
 	.startup = byt_aif1_startup,
 	.hw_params = byt_aif1_hw_params,
@@ -581,8 +603,10 @@ static struct snd_soc_ops byt_aif1_ops = {
 };
 
 static struct snd_soc_ops byt_aif2_ops = {
+	.startup = byt_aif2_startup,
 	.hw_params = byt_aif2_hw_params,
 	.hw_free = byt_aif2_free,
+	.shutdown = byt_aif2_shutdown,
 };
 
 static struct snd_soc_compr_ops byt_compr_ops = {
@@ -712,6 +736,7 @@ static int snd_byt_mc_late_probe(struct snd_soc_card *card)
 		ARIZONA_SAMPLE_RATE_1_MASK, 0x03);
 	snd_soc_update_bits(card->rtd[0].codec, ARIZONA_ASYNC_SAMPLE_RATE_1,
 		ARIZONA_ASYNC_SAMPLE_RATE_2_MASK, 0x03);
+	snd_soc_update_bits(card->rtd[0].codec, ARIZONA_AIF2_RATE_CTRL, ARIZONA_AIF2_TRI, ARIZONA_AIF2_TRI);
 
 	return 0;
 }
@@ -737,9 +762,10 @@ static int snd_byt_mc_probe(struct platform_device *pdev)
 	struct byt_mc_private *drv;
 	pr_info("Entry %s\n", __func__);
     mutex_init(&reg_fll_lock);
+	lnw_gpio_set_alt(136, LNW_ALT_1);
 
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_ATOMIC);
-	vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_OFF); //force off the MCLK1
+	pmc_pc_configure(VLV2_PLAT_CLK_AUDIO, PLAT_CLK_FORCE_OFF); //force off the MCLK1
 
     ret_val = devm_gpio_request_one(&pdev->dev, EXT_SPEAKER_ENABLE_PIN, GPIOF_DIR_OUT|GPIOF_INIT_LOW, "SPK POWER");
     if (ret_val) {
