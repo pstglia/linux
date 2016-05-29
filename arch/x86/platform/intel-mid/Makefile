@@ -9,4 +9,4 @@ endif
 obj-y += platform_sst_audio.o
 obj-$(subst m,y,$(CONFIG_MFD_ARIZONA_SPI)) += platform_byt_audio_spi.o
 obj-$(subst m,y,$(CONFIG_MFD_ARIZONA_SPI)) += platform_wm5102_spi.o
-obj-$(subst m,y,$(CONFIG_VLV2_PLAT_CLK)) += platform_vlv2_plat_clk.o
+obj-$(subst m,y,$(CONFIG_VLV2_PLAT_CLK)) += platform_vlv2_plat_clk.o intel_mid_pcihelpers.o
