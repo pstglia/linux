@@ -65,11 +65,6 @@ struct byt_mc_private {
 #endif /* CONFIG_SND_SOC_COMMS_SSP */
 };
 
-int parm_load_sysclock_fn = 1;
-
-MODULE_PARM_DESC(parm_load_sysclock_fn, "Load byt_config_5102_clks (1 = yes (default), 0 = no)");
-module_param_named(parm_load_sysclock_fn, parm_load_sysclock_fn, int, 0444);
-
 #ifdef CONFIG_SND_SOC_COMMS_SSP
 static inline struct byt_comms_mc_private *kcontrol2ctl(struct snd_kcontrol *kcontrol)
 {
@@ -287,40 +282,10 @@ static void byt_compress_shutdown(struct snd_compr_stream *cstream)
 static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 
-	int ret;
-
-        struct snd_soc_pcm_runtime *rtd = substream->private_data;
-        struct snd_soc_dai *codec_dai = rtd->codec_dai;
-
-        snd_soc_dai_set_bclk_ratio(codec_dai, 50);
-
-	ret = snd_soc_dai_set_sysclk(codec_dai,  ARIZONA_CLK_SYSCLK, params_rate(params) * 512, SND_SOC_CLOCK_IN);
-	if (ret != 0) {
-		dev_err(rtd->codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
-		return ret;
-	}
-
-	ret = snd_soc_dai_set_pll(codec_dai, 0, ARIZONA_CLK_SRC_MCLK1,
-				  params_rate(params) * 50,
-				  params_rate(params) * 512);
-	if (ret < 0) {
-		dev_err(rtd->dev, "can't set codec pll: %d\n", ret);
-		return ret;
-	}
-
-	/*Configure SAMPLE_RATE_1 and ASYNC_SAMPLE_RATE_1 by default to
-	48KHz these values can be changed in runtime by corresponding
-	DAI hw_params callback */
-	snd_soc_update_bits(rtd->codec, ARIZONA_SAMPLE_RATE_1,
-		ARIZONA_SAMPLE_RATE_1_MASK, 0x03);
-	snd_soc_update_bits(rtd->codec, ARIZONA_ASYNC_SAMPLE_RATE_1,
-		ARIZONA_ASYNC_SAMPLE_RATE_2_MASK, 0x03);
-
-        if (parm_load_sysclock_fn) {
-		pr_info("enter %s\n", __func__);
-		return byt_config_5102_clks(rtd->codec, params_rate(params));
-        }
+    pr_info("enter %s\n", __func__);
+	return byt_config_5102_clks(rtd->codec, params_rate(params));
 }
 
 static const struct snd_soc_pcm_stream byt_dai_params = {
