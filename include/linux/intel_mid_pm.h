@@ -34,6 +34,7 @@
 #define INTEL_ATOM_MRFLD 0x4a
 #define INTEL_ATOM_BYT 0x37
 #define INTEL_ATOM_MOORFLD 0x5a
+#define INTEL_ATOM_CHT 0x4c
 
 static inline int platform_is(u8 model)
 {
