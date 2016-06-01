@@ -635,6 +635,9 @@ static struct snd_soc_dai_link byt_dailink[] = {
 			| SND_SOC_DAIFMT_CBS_CFS,
 		.init = byt_init,
 		.ignore_suspend = 1,
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
 		.ops = &byt_aif1_ops,
 	},
 	[BYT_AUD_AIF2] = {
@@ -649,6 +652,9 @@ static struct snd_soc_dai_link byt_dailink[] = {
 			| SND_SOC_DAIFMT_CBS_CFS,
 		.init = NULL,
 		.ignore_suspend = 1,
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
 		.ops = &byt_aif2_ops,
 	},
 	[BYT_AUD_COMPR_DEV] = {
@@ -663,6 +669,9 @@ static struct snd_soc_dai_link byt_dailink[] = {
 			| SND_SOC_DAIFMT_CBS_CFS,
 		.init = NULL,
 		.ignore_suspend = 1,
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
 		.compr_ops = &byt_compr_ops,
 	},
 #ifdef CONFIG_SND_SOC_COMMS_SSP
