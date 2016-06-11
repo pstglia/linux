@@ -18,7 +18,6 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
-#define DEBUG
 #include <linux/delay.h>
 #include <linux/pci.h>
 #include <linux/fs.h>
