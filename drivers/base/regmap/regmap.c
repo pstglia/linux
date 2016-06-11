@@ -31,7 +31,7 @@
  * sort of problem defining LOG_DEVICE will add printks for basic
  * register I/O on a specific device.
  */
-#undef LOG_DEVICE
+#define LOG_DEVICE "spi-WM510204:00"
 
 static int _regmap_update_bits(struct regmap *map, unsigned int reg,
 			       unsigned int mask, unsigned int val,
