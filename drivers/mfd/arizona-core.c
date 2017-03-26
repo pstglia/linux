@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/acpi.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -998,14 +999,14 @@ int arizona_dev_init(struct arizona *arizona)
 	dev_set_drvdata(arizona->dev, arizona);
 	mutex_init(&arizona->clk_lock);
 
-	if (dev_get_platdata(arizona->dev))
+	/*if (dev_get_platdata(arizona->dev))
 		memcpy(&arizona->pdata, dev_get_platdata(arizona->dev),
 		       sizeof(arizona->pdata));
 	else
-		arizona_of_get_core_pdata(arizona);
+		arizona_of_get_core_pdata(arizona);*/
 
 	arizona->pdata.ldoena = 405;
-	arizona->pdata.reset = 342;
+	arizona->pdata.reset = 246;
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1063,13 +1064,12 @@ int arizona_dev_init(struct arizona *arizona)
 
 	/* get the ACPI GpioInt ressource for this device */
 	if (ACPI_COMPANION(dev))
-		arizona->pdata.irq_gpio = acpi_dev_gpio_irq_get(ACPI_COMPANION(dev),
-								0);
+		arizona->pdata.irq_gpio = 342 ;
 	else {
 		/* ACPI _CRS value for WM510204:
 		 * arizona->pdata.irq_gpio = 0x04 ;
 		 */
-		arizona->pdata.irq_gpio = 146 ;
+		arizona->pdata.irq_gpio = 342 ;
 	}
 
 	dev_err(dev, "(ACPI) using irq_gpio GPIO = %i\n",arizona->pdata.irq_gpio);
