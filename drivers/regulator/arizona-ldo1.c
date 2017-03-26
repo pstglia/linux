@@ -22,12 +22,49 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
+#include <linux/regulator/fixed.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
 
 #include <linux/mfd/arizona/core.h>
 #include <linux/mfd/arizona/pdata.h>
 #include <linux/mfd/arizona/registers.h>
+
+static struct regulator_consumer_supply dc1v8_consumers[] = {
+	REGULATOR_SUPPLY("AVDD", "spi-WM510204:00"), /* wm5102 */
+	REGULATOR_SUPPLY("DBVDD1", "spi-WM510204:00"), /* wm5102 */
+	REGULATOR_SUPPLY("LDOVDD", "spi-WM510204:00"),
+
+	REGULATOR_SUPPLY("DBVDD2", "spi-WM510204:00"),
+	REGULATOR_SUPPLY("DBVDD3", "spi-WM510204:00"),
+	REGULATOR_SUPPLY("CPVDD", "wm5102-codec"),
+	REGULATOR_SUPPLY("SPKVDDL", "spi-WM510204:00"),
+	REGULATOR_SUPPLY("SPKVDDR", "spi-WM510204:00"),
+	REGULATOR_SUPPLY("CPVDD", "spi-WM510204:00"),
+};
+
+static struct regulator_init_data dc1v8_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(dc1v8_consumers),
+	.consumer_supplies = dc1v8_consumers,
+};
+
+static struct fixed_voltage_config dc1v8vdd_pdata = {
+	.supply_name = "DC_1V8",
+	.microvolts = 1800000,
+	.init_data = &dc1v8_data,
+	.gpio = -1,
+};
+
+static struct platform_device dc1v8_device = {
+	.name           = "reg-fixed-voltage",
+	.id             = 0,
+	.dev = {
+	        .platform_data = &dc1v8vdd_pdata,
+	},
+};
 
 struct arizona_ldo1 {
 	struct regulator_dev *regulator;
@@ -241,6 +278,9 @@ static int arizona_ldo1_probe(struct platform_device *pdev)
 	struct arizona_ldo1 *ldo1;
 	int ret;
 
+	// Register the regulators for WM5102 (baytrail device)
+	platform_device_register(&dc1v8_device);
+
 	arizona->external_dcvdd = false;
 
 	ldo1 = devm_kzalloc(&pdev->dev, sizeof(*ldo1), GFP_KERNEL);
@@ -287,6 +327,12 @@ static int arizona_ldo1_probe(struct platform_device *pdev)
 			if (ret < 0)
 				return ret;
 		}
+	}
+
+	if (arizona->pdata.ldoena == 0) {
+		dev_warn(arizona->dev, "LDOENA return is 0 - Assuming default 405\n");
+		arizona->pdata.ldoena = 405;
+		config.ena_gpio_initialized = true;
 	}
 
 	config.ena_gpio = arizona->pdata.ldoena;
