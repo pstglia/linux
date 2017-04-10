@@ -1090,6 +1090,20 @@ int arizona_dev_init(struct arizona *arizona)
 
 	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 246;
+	arizona->pdata.irq_gpio = 342;
+	arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
+	arizona->pdata.gpio_base = 300;
+	arizona->pdata.micd_pol_gpio = 304;
+	arizona->pdata.clk32k_src = 2;
+
+
+	/* remove kernel warnning to defer probe */
+	if (arizona->pdata.reset) {
+		ret = gpio_request(arizona->pdata.reset, "arizona /RESET");
+	if (ret!=0)
+		return -EPROBE_DEFER;
+	gpio_free(arizona->pdata.reset);
+	}
 
 	regcache_cache_only(arizona->regmap, true);
 
@@ -1151,7 +1165,7 @@ int arizona_dev_init(struct arizona *arizona)
 		goto err_early;
 	}
 
-#ifdef CONFIG_ACPI
+#if 0
 	arizona->pdata.irq_flags = IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING;
 
 	/* get the ACPI GpioInt ressource for this device */
@@ -1171,7 +1185,7 @@ int arizona_dev_init(struct arizona *arizona)
 	if (arizona->pdata.reset) {
 		/* Start out with /RESET low to put the chip into reset */
 		ret = devm_gpio_request_one(arizona->dev, arizona->pdata.reset,
-					    GPIOF_DIR_OUT | GPIOF_INIT_LOW,
+					    GPIOF_DIR_OUT | GPIOF_INIT_HIGH,
 					    "arizona /RESET");
 		if (ret != 0) {
 			/* try to get the reset GPIO pin, otherwise let it fail */
