@@ -543,7 +543,7 @@ static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 	pr_debug("audio_set_alt intf %d, alt %d\n", intf, alt);
 
-	if (intf == as_interface_alt_1_desc.bInterfaceNumber &&
+	if (intf == audio_as_interface_alt_1_desc.bInterfaceNumber &&
 		alt == 1 && !audio->in_ep->driver_data) {
 		ret = config_ep_by_speed(cdev->gadget, f, audio->in_ep);
 		if (ret)
