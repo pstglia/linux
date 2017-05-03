@@ -64,6 +64,18 @@ config SND_SOC_INTEL_BYT_RT5640_MACH
 	  This adds audio driver for Intel Baytrail platform based boards
 	  with the RT5640 audio codec.
 
+config SND_SOC_INTEL_BYTCR_WM5102_MACH
+	tristate "ASoC Audio DSP Support for MID BYT Platform"
+	depends on X86 && I2C
+	select SND_SOC_WM5102
+	select SND_SST_MFLD_PLATFORM
+	select SND_SST_IPC_ACPI
+	help
+	  This adds support for ASoC machine driver for Intel(R) MID Baytrail platform
+          used as alsa device in audio substem in Intel(R) MID devices
+          Say Y if you have such a device (wolfson wm5102)
+          If unsure select "N".
+
 config SND_SOC_INTEL_BYT_MAX98090_MACH
 	tristate "ASoC Audio driver for Intel Baytrail with MAX98090 codec"
 	depends on X86_INTEL_LPSS && I2C
