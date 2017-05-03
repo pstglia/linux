@@ -1366,39 +1366,6 @@ static int arizona_sr_vals[] = {
 	512000,
 };
 
-static int arizona_startup(struct snd_pcm_substream *substream,
-			   struct snd_soc_dai *dai)
-{
-	struct snd_soc_codec *codec = dai->codec;
-	struct arizona_priv *priv = snd_soc_codec_get_drvdata(codec);
-	struct arizona_dai_priv *dai_priv = &priv->dai[dai->id - 1];
-	const struct snd_pcm_hw_constraint_list *constraint;
-	unsigned int base_rate;
-
-	switch (dai_priv->clk) {
-	case ARIZONA_CLK_SYSCLK:
-		base_rate = priv->sysclk;
-		break;
-	case ARIZONA_CLK_ASYNCCLK:
-		base_rate = priv->asyncclk;
-		break;
-	default:
-		return 0;
-	}
-
-	if (base_rate == 0)
-		return 0;
-
-	if (base_rate % 8000)
-		constraint = &arizona_44k1_constraint;
-	else
-		constraint = &arizona_48k_constraint;
-
-	return snd_pcm_hw_constraint_list(substream->runtime, 0,
-					  SNDRV_PCM_HW_PARAM_RATE,
-					  constraint);
-}
-
 static void arizona_wm5102_set_dac_comp(struct snd_soc_codec *codec,
 					unsigned int rate)
 {
@@ -1525,6 +1492,7 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_codec *codec = dai->codec;
 	struct arizona_priv *priv = snd_soc_codec_get_drvdata(codec);
+	struct arizona_dai_priv *dai_priv = &priv->dai[dai->id - 1];
 	struct arizona *arizona = priv->arizona;
 	int base = dai->driver->base;
 	const int *rates;
@@ -1536,6 +1504,26 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 	int bclk, lrclk, wl, frame, bclk_target;
 	bool reconfig;
 	unsigned int aif_tx_state, aif_rx_state;
+	unsigned int base_rate;
+
+	switch (dai_priv->clk) {
+	case ARIZONA_CLK_SYSCLK:
+	        base_rate = priv->sysclk;
+	        break;
+	case ARIZONA_CLK_ASYNCCLK:
+	        base_rate = priv->asyncclk;
+	        break;
+	default:
+	        arizona_aif_err(dai, "Unknown clock: %d\n", dai_priv->clk);
+	        return -EINVAL;
+	}
+
+	if (!!(base_rate % 8000) != !!(params_rate(params) % 8000)) {
+	        arizona_aif_err(dai,
+	                        "Rate %dHz not supported off %dHz clock\n",
+	                        params_rate(params), base_rate);
+	        return -EINVAL;
+	}
 
 	if (params_rate(params) % 4000)
 		rates = &arizona_44k1_bclk_rates[0];
@@ -1768,7 +1756,6 @@ static int arizona_set_tdm_slot(struct snd_soc_dai *dai, unsigned int tx_mask,
 }
 
 const struct snd_soc_dai_ops arizona_dai_ops = {
-	.startup = arizona_startup,
 	.set_fmt = arizona_set_fmt,
 	.set_tdm_slot = arizona_set_tdm_slot,
 	.hw_params = arizona_hw_params,
@@ -1778,7 +1765,6 @@ const struct snd_soc_dai_ops arizona_dai_ops = {
 EXPORT_SYMBOL_GPL(arizona_dai_ops);
 
 const struct snd_soc_dai_ops arizona_simple_dai_ops = {
-	.startup = arizona_startup,
 	.hw_params = arizona_hw_params_rate,
 	.set_sysclk = arizona_dai_set_sysclk,
 };
@@ -2168,7 +2154,7 @@ static int arizona_enable_fll(struct arizona_fll *fll)
 		if (val & (ARIZONA_FLL1_CLOCK_OK_STS << (fll->id - 1)))
 			break;
 	}
-	if (i == 15)
+	if (i == 45)
 		arizona_fll_warn(fll, "Timed out waiting for lock\n");
 	else
 		arizona_fll_dbg(fll, "FLL locked (%d polls)\n", i);
