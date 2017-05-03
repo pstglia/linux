@@ -152,6 +152,12 @@
 #define	SLEEP_TYPE_S5		0x1C00
 #define	SLEEP_ENABLE		0x2000
 
+struct pmc_clk {
+	const char *name;
+	unsigned long freq;
+	const char *parent_name;
+};
+
 extern int pmc_atom_read(int offset, u32 *value);
 extern int pmc_atom_write(int offset, u32 value);
 

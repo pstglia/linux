@@ -21,6 +21,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/io.h>
+#include <linux/platform_device.h>
 
 #include <asm/pmc_atom.h>
 
@@ -37,6 +38,11 @@ struct pmc_reg_map {
 	const struct pmc_bit_map *pss;
 };
 
+struct pmc_data {
+	const struct pmc_reg_map *map;
+	const struct pmc_clk *clks;
+};
+
 struct pmc_dev {
 	u32 base_addr;
 	void __iomem *regmap;
@@ -49,6 +55,29 @@ struct pmc_dev {
 
 static struct pmc_dev pmc_device;
 static u32 acpi_base_addr;
+
+static const struct pmc_clk byt_clks[] = {
+	{
+		.name = "xtal",
+		.freq = 25000000,
+		.parent_name = NULL,
+	},
+	{
+		.name = "pll",
+		.freq = 19200000,
+		.parent_name = "xtal",
+	},
+	{},
+};
+
+static const struct pmc_clk cht_clks[] = {
+	{
+		.name = "xtal",
+		.freq = 19200000,
+		.parent_name = NULL,
+	},
+	{},
+};
 
 static const struct pmc_bit_map d3_sts_0_map[] = {
 	{"LPSS1_F0_DMA",	BIT_LPSS1_F0_DMA},
@@ -167,6 +196,16 @@ static const struct pmc_reg_map cht_reg_map = {
 	.func_dis	= d3_sts_0_map,
 	.func_dis_2	= cht_func_dis_2_map,
 	.pss		= cht_pss_map,
+};
+
+static const struct pmc_data byt_data = {
+	.map = &byt_reg_map,
+	.clks = byt_clks,
+};
+
+static const struct pmc_data cht_data = {
+	.map = &cht_reg_map,
+	.clks = cht_clks,
 };
 
 static inline u32 pmc_reg_read(struct pmc_dev *pmc, int reg_offset)
@@ -384,8 +423,11 @@ static int pmc_dbgfs_register(struct pmc_dev *pmc)
 
 static int pmc_setup_dev(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
+	struct platform_device *clkdev;
 	struct pmc_dev *pmc = &pmc_device;
-	const struct pmc_reg_map *map = (struct pmc_reg_map *)ent->driver_data;
+	const struct pmc_data *data = (struct pmc_data *)ent->driver_data;
+	const struct pmc_reg_map *map = data->map;
+	const struct pmc_clk *clks = data->clks;
 	int ret;
 
 	/* Obtain ACPI base address */
@@ -414,6 +456,13 @@ static int pmc_setup_dev(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (ret)
 		dev_warn(&pdev->dev, "debugfs register failed\n");
 
+	/* Register platform clocks - PMC_PLT_CLK [5:0] */
+	clkdev = platform_device_register_data(NULL, "clk-byt-plt", -1,
+					       &clks, sizeof(clks));
+	if (IS_ERR(clkdev))
+		dev_warn(&pdev->dev, "platform clocks register failed: %ld\n",
+			 PTR_ERR(clkdev));
+
 	pmc->init = true;
 	return ret;
 }
@@ -424,8 +473,8 @@ static int pmc_setup_dev(struct pci_dev *pdev, const struct pci_device_id *ent)
  * used by pci_match_id() call below.
  */
 static const struct pci_device_id pmc_pci_ids[] = {
-	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_VLV_PMC), (kernel_ulong_t)&byt_reg_map },
-	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_CHT_PMC), (kernel_ulong_t)&cht_reg_map },
+	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_VLV_PMC), (kernel_ulong_t)&byt_data },
+	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_CHT_PMC), (kernel_ulong_t)&cht_data },
 	{ 0, },
 };
 
