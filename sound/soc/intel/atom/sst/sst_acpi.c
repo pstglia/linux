@@ -119,7 +119,7 @@ static const struct sst_res_info byt_rvp_res_info = {
 	.mbox_size = 0x1000,
 	.acpi_lpe_res_index = 0,
 	.acpi_ddr_index = 2,
-	.acpi_ipc_irq_index = 5,
+	.acpi_ipc_irq_index = 0,
 };
 
 static struct sst_platform_info byt_rvp_platform_data = {
