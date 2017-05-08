@@ -27,12 +27,15 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <linux/mfd/arizona/registers.h>
 #include "../../codecs/wm5102.h"
 #include "../atom/sst-atom-controls.h"
 #include <asm/platform_sst_audio.h>
 #include <linux/clk.h>
 
 #define BYT_PLAT_CLK_3_HZ	25000000
+#define WM5102_MAX_SYSCLK_1 49152000 /*max sysclk for 4K family*/
+#define WM5102_MAX_SYSCLK_2 45158400 /*max sysclk for 11.025K family*/
 
 // References MCLK to enable it
 static struct clk *mclk;
@@ -57,12 +60,12 @@ static const struct snd_soc_dapm_route byt_audio_map[] = {
 	{"Int Mic", NULL, "MICBIAS3"},
 	{"IN3L", NULL, "Int Mic"},
 
-        {"AIF1 Playback", NULL, "ssp2 Tx"},
-        {"ssp2 Tx", NULL, "codec_out0"},
-        {"ssp2 Tx", NULL, "codec_out1"},
-        {"codec_in0", NULL, "ssp2 Rx"},
-        {"codec_in1", NULL, "ssp2 Rx"},
-        {"ssp2 Rx", NULL, "AIF1 Capture"},
+        {"AIF1 Playback", NULL, "ssp0 Tx"},
+        {"ssp0 Tx", NULL, "codec_out0"},
+        {"ssp0 Tx", NULL, "codec_out1"},
+        {"codec_in0", NULL, "ssp0 Rx"},
+        {"codec_in1", NULL, "ssp0 Rx"},
+        {"ssp0 Rx", NULL, "AIF1 Capture"},
 
 };
 
@@ -81,7 +84,8 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *wm5102_codec = rtd->codec;
 	int ret;
 
-	snd_soc_dai_set_bclk_ratio(codec_dai, 50);
+	int sr = params_rate(params);
+	int sr_mult = (params_rate(params) % 4000 == 0) ? (WM5102_MAX_SYSCLK_1/params_rate(params)) : (WM5102_MAX_SYSCLK_2/params_rate(params));
 
 	/*Open MCLK before Set DAI CLK*/
 	ret = clk_prepare_enable(mclk);
@@ -99,27 +103,37 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM5102_FLL1_REFCLK,
+	ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1_REFCLK,
 				  ARIZONA_FLL_SRC_NONE, 0, 0);
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM5102_FLL1,
+	ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
 				  ARIZONA_FLL_SRC_NONE, 0, 0);
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM5102_FLL1, ARIZONA_CLK_SRC_MCLK1,
+	ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1, ARIZONA_CLK_SRC_MCLK1,
 				  BYT_PLAT_CLK_3_HZ,
-				  params_rate(params) * 512);
+				  sr * sr_mult);
 	if (ret < 0) {
-		dev_err(rtd->dev, "can't set codec pll: %d\n", ret);
+		dev_err(wm5102_codec->dev, "Failed to enable FLL1 with Ref Clock Loop: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_sysclk(codec_dai, ARIZONA_CLK_SYSCLK,
-				     params_rate(params) * 512,
-				     SND_SOC_CLOCK_IN);
-	if (ret < 0) {
-		dev_err(rtd->dev, "can't set codec clock %d\n", ret);
+	ret = snd_soc_codec_set_sysclk(wm5102_codec,
+			ARIZONA_CLK_SYSCLK,
+			ARIZONA_CLK_SRC_FLL1,
+			sr * sr_mult,
+			SND_SOC_CLOCK_IN);
+	if (ret != 0) {
+		dev_err(wm5102_codec->dev, "Failed to set AYNCCLK: %d\n", ret);
 		return ret;
 	}
+
+	ret = snd_soc_codec_set_sysclk(wm5102_codec,
+					ARIZONA_CLK_SYSCLK, 0,
+					sr * sr_mult,
+					SND_SOC_CLOCK_OUT);
+        if (ret < 0) {
+                dev_err(rtd->dev, "can't set OPCLK %d\n", ret);
+        }
 
 	return 0;
 }
@@ -144,8 +158,8 @@ static int byt_codec_fixup(struct snd_soc_pcm_runtime *rtd,
 	rate->min = rate->max = 48000;
 	channels->min = channels->max = 2;
 
-	/* set SSP2 to 24-bit */
-	params_set_format(params, SNDRV_PCM_FORMAT_S24_LE);
+	/* set SSP0 to 16-bit */
+	params_set_format(params, SNDRV_PCM_FORMAT_S16_LE);
 	return 0;
 }
 
@@ -168,8 +182,8 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.name = "Baytrail Audio Port",
 		.stream_name = "Baytrail Audio",
 		.cpu_dai_name = "media-cpu-dai",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "wm5102-aif1",
+		.codec_name = "wm5102-codec",
 		.platform_name = "sst-mfld-platform",
 		.ignore_suspend = 1,
 		.dynamic = 1,
@@ -181,15 +195,15 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.name = "Baytrail Compressed Port",
 		.stream_name = "Baytrail Compress",
 		.cpu_dai_name = "compress-cpu-dai",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "wm5102-aif1",
+		.codec_name = "wm5102-codec",
 		.platform_name = "sst-mfld-platform",
 	},
 		/* back ends */
 	{
-		.name = "SSP2-Codec",
+		.name = "SSP0-Codec",
 		.be_id = 1,
-		.cpu_dai_name = "ssp2-port",
+		.cpu_dai_name = "ssp0-port",
 		.platform_name = "sst-mfld-platform",
 		.no_pcm = 1,
 		.codec_dai_name = "wm5102-aif1",
@@ -204,12 +218,39 @@ static struct snd_soc_dai_link byt_dailink[] = {
 	},
 };
 
+
+static int snd_byt_mc_late_probe(struct snd_soc_card *card)
+{
+	int ret;
+
+	ret = snd_soc_dai_set_sysclk(card->rtd[0].codec_dai,  ARIZONA_CLK_SYSCLK, 0, 0);
+	if (ret != 0) {
+		dev_err(card->rtd[0].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dai_set_sysclk(card->rtd[1].codec_dai, ARIZONA_CLK_SYSCLK, 0, 0);
+	if (ret != 0) {
+		dev_err(card->rtd[0].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
+		return ret;
+	}
+
+	/*Configure SAMPLE_RATE_1 by default to
+	48KHz this value can be changed in runtime by corresponding
+	DAI hw_params callback */
+	snd_soc_update_bits(card->rtd[0].codec, ARIZONA_SAMPLE_RATE_1,
+		ARIZONA_SAMPLE_RATE_1_MASK, 0x03);
+
+	return 0;
+}
+
 /* SoC card */
 static struct snd_soc_card snd_soc_card_byt = {
 	.name = "baytrailcraudio",
 	.owner = THIS_MODULE,
 	.dai_link = byt_dailink,
 	.num_links = ARRAY_SIZE(byt_dailink),
+	.late_probe = snd_byt_mc_late_probe,
 	.dapm_widgets = byt_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(byt_dapm_widgets),
 	.dapm_routes = byt_audio_map,
