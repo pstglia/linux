@@ -269,8 +269,11 @@ static int is_byt_cr(struct device *dev, bool *bytcr)
 
 			if ((bios_status == 1) || (bios_status == 3))
 				*bytcr = true;
-			else
+			else {
 				dev_info(dev, "BYT-CR not detected\n");
+				dev_info(dev, "TEMP HACK - forcing BYT-CR to true\n");
+				*bytcr = true;
+			}
 		}
 	} else {
 		dev_info(dev, "IOSF_MBI not enabled, no BYT-CR detection\n");
