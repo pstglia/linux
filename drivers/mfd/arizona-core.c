@@ -1080,7 +1080,6 @@ int arizona_dev_init(struct arizona *arizona)
 		}
 	}
 
-	arizona->pdata.ldoena = 405;
 	arizona->pdata.reset = 246;
 	arizona->pdata.irq_gpio = 342;
 	arizona->pdata.irq_flags = IRQF_TRIGGER_FALLING;
