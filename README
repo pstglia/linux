@@ -1,18 +1,31 @@
-Linux kernel
-============
+This branch has changes in order to eable sound on
+Lenovo Yoga 2 Tablets (1051F model currently)
 
-This file was moved to Documentation/admin-guide/README.rst
+Just sound through headphones is supported at the moment
 
-Please notice that there are several guides for kernel developers and users.
-These guides can be rendered in a number of formats, like HTML and PDF.
+It was tested with Android-x86, but should work on any regular
+Linux distro.
 
-In order to build the documentation, use ``make htmldocs`` or
-``make pdfdocs``.
+If you want to compile and test it (Android-x86):
 
-There are various text files in the Documentation/ subdirectory,
-several of them using the Restructured Text markup notation.
-See Documentation/00-INDEX for a list of what is contained in each file.
+1) Fetch and checkout this branch on your kernel directory:
 
-Please read the Documentation/process/changes.rst file, as it contains the
-requirements for building and running the kernel, and information about
-the problems which may result by upgrading your kernel.
+cd PATH_TO_ANDROID_SRC_ROOT/kernel
+
+git remote add pstglia https://github.com/pstglia/linux.git
+
+git fetch pstglia lenovo_yoga2_returns-4.12rc5
+
+2) Download state file from here (bytcrwm5102.state):
+
+https://drive.google.com/file/d/0BxO6THtB865fVVc2N2VETEZKQ3M/view?usp=sharing
+
+And copy to PATH_TO_ANDROID_SRC_ROOT/device/generic/common/alsa/
+
+3) Compile android-x86 as usual
+
+============================
+
+
+
+
