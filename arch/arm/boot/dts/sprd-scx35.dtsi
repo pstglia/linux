@@ -34,6 +34,22 @@
 		hwspinlock1 = &hwspinlock1;
 	};
 
+	firmware {
+		android {
+			compatible = "android,firmware";
+			fstab {
+				compatible = "android,fstab";
+				system {
+					compatible = "android,system";
+					dev = "/dev/block/platform/sprd-sdhci.3/by-name/system";
+					type = "ext4";
+					mnt_flags = "ro,errors=panic";
+					fsmgr_flags = "wait";
+				};
+			};
+		};
+	};
+
 	gic: interrupt-controller@12001000 {
 		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
 		#interrupt-cells = <3>;
