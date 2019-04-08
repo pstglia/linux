@@ -46,6 +46,34 @@
 					mnt_flags = "ro,errors=panic";
 					fsmgr_flags = "wait";
 				};
+				data {
+					compatible = "android,data";
+					dev = "/dev/block/platform/sprd-sdhci.3/by-name/userdata";
+					type = "ext4";
+					mnt_flags = "nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic";
+					fsmgr_flags = "wait,check,encryptable=footer";
+				};
+				cache {
+					compatible = "android,cache";
+					dev = "/dev/block/platform/sprd-sdhci.3/by-name/CSC";
+					type = "ext4";
+					mnt_flags = "nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic";
+					fsmgr_flags = "wait,check";
+				};
+				efs {
+					compatible = "android,efs";
+					dev = "/dev/block/platform/sprd-sdhci.3/by-name/efs";
+					type = "ext4";
+					mnt_flags = "nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic";
+					fsmgr_flags = "wait,check";
+				};
+				prodnv {
+					compatible = "android,prodnv";
+					dev = "/dev/block/platform/sprd-sdhci.3/by-name/prodnv";
+					type = "ext4";
+					mnt_flags = "nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic";
+					fsmgr_flags = "wait,check";
+				};
 			};
 		};
 	};
