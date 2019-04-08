@@ -85,6 +85,7 @@
 #include <linux/msg.h>
 #include <linux/shm.h>
 
+
 #include "avc.h"
 #include "objsec.h"
 #include "netif.h"
@@ -1675,8 +1676,8 @@ static int may_create(struct inode *dir,
 		return rc;
 
 	return avc_has_perm(newsid, sbsec->sid,
-			    SECCLASS_FILESYSTEM,
-			    FILESYSTEM__ASSOCIATE, &ad);
+						SECCLASS_FILESYSTEM,
+						FILESYSTEM__ASSOCIATE, &ad);
 }
 
 /* Check whether a task can create a key. */
@@ -1732,8 +1733,7 @@ static int may_link(struct inode *dir,
 		return 0;
 	}
 
-	rc = avc_has_perm(sid, isec->sid, isec->sclass, av, &ad);
-	return rc;
+	return avc_has_perm(sid, isec->sid, isec->sclass, av, &ad);
 }
 
 static inline int may_rename(struct inode *old_dir,
@@ -1909,10 +1909,12 @@ static int selinux_binder_transfer_file(struct task_struct *from, struct task_st
 	struct inode *inode = file->f_path.dentry->d_inode;
 	struct inode_security_struct *isec = inode->i_security;
 	struct common_audit_data ad;
+	struct selinux_audit_data sad = {0,};
 	int rc;
 
 	ad.type = LSM_AUDIT_DATA_PATH;
 	ad.u.path = file->f_path;
+	ad.selinux_audit_data = &sad;
 
 	if (sid != fsec->sid) {
 		rc = avc_has_perm(sid, fsec->sid,
@@ -2823,7 +2825,8 @@ static int selinux_inode_setattr(struct dentry *dentry, struct iattr *iattr)
 			ATTR_ATIME_SET | ATTR_MTIME_SET | ATTR_TIMES_SET))
 		return dentry_has_perm(cred, dentry, FILE__SETATTR);
 
-	if (selinux_policycap_openperm && (ia_valid & ATTR_SIZE))
+	if (selinux_policycap_openperm && (ia_valid & ATTR_SIZE)
+			&& !(ia_valid & ATTR_FILE))
 		av |= FILE__OPEN;
 
 	return dentry_has_perm(cred, dentry, av);
@@ -3124,6 +3127,8 @@ int ioctl_has_perm(const struct cred *cred, struct file *file,
 	struct lsm_ioctlop_audit ioctl;
 	u32 ssid = cred_sid(cred);
 	int rc;
+	u8 driver = cmd >> 8;
+	u8 xperm = cmd & 0xff;
 
 	ad.type = LSM_AUDIT_DATA_IOCTL_OP;
 	ad.u.op = &ioctl;
@@ -3142,8 +3147,8 @@ int ioctl_has_perm(const struct cred *cred, struct file *file,
 	if (unlikely(IS_PRIVATE(inode)))
 		return 0;
 
-	rc = avc_has_operation(ssid, isec->sid, isec->sclass,
-			requested, cmd, &ad);
+	rc = avc_has_extended_perms(ssid, isec->sid, isec->sclass,
+			requested, driver, xperm, &ad);
 out:
 	return rc;
 }
@@ -3924,6 +3929,11 @@ static int sock_has_perm(struct task_struct *task, struct sock *sk, u32 perms)
 	struct common_audit_data ad;
 	struct lsm_network_audit net = {0,};
 	u32 tsid = task_sid(task);
+
+	if (unlikely(!sksec)) {
+		pr_warn("SELinux: sksec is NULL, socket is already freed\n");
+		return -EINVAL;
+	}
 
 	if (sksec->sid == SECINITSID_KERNEL)
 		return 0;
@@ -5554,7 +5564,7 @@ static int selinux_setprocattr(struct task_struct *p,
 		return error;
 
 	/* Obtain a SID for the context, if one was specified. */
-	if (size && str[1] && str[1] != '\n') {
+	if (size && str[0] && str[0] != '\n') {
 		if (str[size-1] == '\n') {
 			str[size-1] = 0;
 			size--;
