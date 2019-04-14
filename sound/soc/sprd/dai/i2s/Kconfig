@@ -1,2 +1,0 @@
-config SND_SOC_SPRD_I2S
-	tristate #"I2S"
