@@ -387,18 +387,18 @@ static int zswap_cpu_init(void)
 {
 	unsigned long cpu;
 
-	cpu_notifier_register_begin();
+	get_online_cpus();
 	for_each_online_cpu(cpu)
 		if (__zswap_cpu_notifier(CPU_UP_PREPARE, cpu) != NOTIFY_OK)
 			goto cleanup;
-	__register_cpu_notifier(&zswap_cpu_notifier_block);
-	cpu_notifier_register_done();
+	register_cpu_notifier(&zswap_cpu_notifier_block);
+	put_online_cpus();
 	return 0;
 
 cleanup:
 	for_each_online_cpu(cpu)
 		__zswap_cpu_notifier(CPU_UP_CANCELED, cpu);
-	cpu_notifier_register_done();
+	put_online_cpus();
 	return -ENOMEM;
 }
 
