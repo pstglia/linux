@@ -45,6 +45,7 @@ static LIST_HEAD(input_handler_list);
  */
 static DEFINE_MUTEX(input_mutex);
 
+
 static struct input_handler *input_table[8];
 
 static inline int is_event_supported(unsigned int code,
@@ -1602,7 +1603,9 @@ static int input_dev_resume(struct device *dev)
 {
 	struct input_dev *input_dev = to_input_dev(dev);
 
-	input_reset_device(input_dev);
+	if (!(test_bit(EV_KEY, input_dev->evbit)&&(test_bit(KEY_POWER, input_dev->keybit)))){
+		input_reset_device(input_dev);
+	}
 
 	return 0;
 }

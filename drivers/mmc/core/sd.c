@@ -929,6 +929,9 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	int err;
 	u32 cid[4];
 	u32 rocr = 0;
+#ifdef CONFIG_MMC_PARANOID_SD_INIT
+	int retries;
+#endif
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
@@ -1009,7 +1012,23 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		/*
 		 * Attempt to change to high-speed (if supported)
 		 */
+#ifdef CONFIG_MMC_PARANOID_SD_INIT
+		retries = 5;
+		while (retries) {
+			err = mmc_sd_switch_hs(card);
+			if (err < 0) {
+				printk(KERN_ERR "%s: Re-switch hs, err %d (retries = %d)\n",
+					   mmc_hostname(card->host), err, retries);
+				mdelay(5);
+				retries--;
+				continue;
+			}
+			break;
+		}
+#else
 		err = mmc_sd_switch_hs(card);
+#endif
+
 		if (err > 0)
 			mmc_sd_go_highspeed(card);
 		else if (err)

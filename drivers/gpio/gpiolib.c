@@ -1750,15 +1750,23 @@ static void gpiolib_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	unsigned		i;
 	unsigned		gpio = chip->base;
 	struct gpio_desc	*gdesc = &gpio_desc[gpio];
-	int			is_out;
+	int	is_out;
+	char gpio_name[16];
+	int ret;
 
 	for (i = 0; i < chip->ngpio; i++, gpio++, gdesc++) {
+
+		/* DK, show all gpio num
 		if (!test_bit(FLAG_REQUESTED, &gdesc->flags))
 			continue;
+		*/
 
+		/* DK, print gpio name */
+		ret = sw_gpio_to_name(gpio, gpio_name);
+		
 		is_out = test_bit(FLAG_IS_OUT, &gdesc->flags);
-		seq_printf(s, " gpio-%-3d (%-20.20s) %s %s",
-			gpio, gdesc->label,
+		seq_printf(s, " gpio-%-3d %s(%-20.20s) %s %s",
+			gpio, gpio_name, gdesc->label,
 			is_out ? "out" : "in ",
 			chip->get
 				? (chip->get(chip, i) ? "hi" : "lo")

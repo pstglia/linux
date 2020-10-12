@@ -29,6 +29,9 @@ obj-$(CONFIG_FB_MACMODES)      += macmodes.o
 obj-$(CONFIG_FB_DDC)           += fb_ddc.o
 obj-$(CONFIG_FB_DEFERRED_IO)   += fb_defio.o
 obj-$(CONFIG_FB_WMT_GE_ROPS)   += wmt_ge_rops.o
+obj-$(CONFIG_LYCHEE_FB_SUN7I)     += sun7i/disp/
+obj-$(CONFIG_LYCHEE_LCD_SUN7I)    += sun7i/lcd/
+obj-$(CONFIG_LYCHEE_HDMI_SUN7I)   += sun7i/hdmi/
 
 # Hardware specific drivers go first
 obj-$(CONFIG_FB_AMIGA)            += amifb.o c2p_planar.o

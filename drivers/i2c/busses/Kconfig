@@ -675,6 +675,29 @@ config I2C_STU300
 	  This driver can also be built as a module. If so, the module
 	  will be called i2c-stu300.
 
+config I2C_SUN7I
+	tristate "Allwinner Technology SUN7I I2C interface"
+	depends on ARCH_SUN7I
+	default y if MACH_SUN7I
+	help
+	  If you say yes to this option, support will be included for the
+	  I2C interface from Allwinner Technology SUN7I platform.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called i2c-sun7i.
+
+config SUN7I_I2C_PRINT_TRANSFER_INFO
+	boolean "sun7i i2c print transfer information"
+	depends on I2C_SUN7I
+	help
+	  "sun7i i2c bus driver print transfer information"
+
+config SUN7I_I2C_PRINT_TRANSFER_INFO_WITH_BUS_NUM
+	depends on SUN7I_I2C_PRINT_TRANSFER_INFO
+	int "bus num id(accepatable input:0,1,2)"
+    help
+	  "sun7i i2c bus driver print transfer information with bus number"
+
 config I2C_TEGRA
 	tristate "NVIDIA Tegra internal I2C controller"
 	depends on ARCH_TEGRA

@@ -279,11 +279,25 @@ skip_resume:
 	return 0;
 }
 
+extern int sw_usb_suspend_disabled(int usbc_no);
+
 static int ohci_bus_suspend (struct usb_hcd *hcd)
 {
 	struct ohci_hcd		*ohci = hcd_to_ohci (hcd);
 	int			rc;
 
+	if(hcd->self.busnum == 1 && sw_usb_suspend_disabled(0))
+    	return 0;
+    else if(hcd->self.busnum == 2 && sw_usb_suspend_disabled(1))
+    	return 0;
+    else if(hcd->self.busnum == 3 && sw_usb_suspend_disabled(1))
+    	return 0;
+    else if(hcd->self.busnum == 4 && sw_usb_suspend_disabled(2))
+    	return 0;
+    else if(hcd->self.busnum == 5 && sw_usb_suspend_disabled(2))
+    	return 0;
+    	
+    ohci_info(ohci, "suspend root hub\n");
 	spin_lock_irq (&ohci->lock);
 
 	if (unlikely(!HCD_HW_ACCESSIBLE(hcd)))
@@ -299,6 +313,19 @@ static int ohci_bus_resume (struct usb_hcd *hcd)
 	struct ohci_hcd		*ohci = hcd_to_ohci (hcd);
 	int			rc;
 
+    if(hcd->self.busnum == 1 && sw_usb_suspend_disabled(0))
+        return 0;
+    else if(hcd->self.busnum == 2 && sw_usb_suspend_disabled(1))
+        return 0;
+    else if(hcd->self.busnum == 3 && sw_usb_suspend_disabled(1))
+        return 0;
+    else if(hcd->self.busnum == 4 && sw_usb_suspend_disabled(2))
+        return 0;
+    else if(hcd->self.busnum == 5 && sw_usb_suspend_disabled(2))
+        return 0;
+
+    ohci_info(ohci, "resume root hub\n");
+    
 	if (time_before (jiffies, ohci->next_statechange))
 		msleep(5);
 

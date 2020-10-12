@@ -1120,6 +1120,10 @@ MODULE_LICENSE ("GPL");
 #define PLATFORM_DRIVER		ohci_platform_driver
 #endif
 
+#ifdef CONFIG_USB_SW_SUN7I_HCI
+#include "ohci_sun7i.c"
+#define	PLATFORM_DRIVER		sw_ohci_hcd_driver
+#endif
 #if	!defined(PCI_DRIVER) &&		\
 	!defined(PLATFORM_DRIVER) &&	\
 	!defined(OMAP1_PLATFORM_DRIVER) &&	\

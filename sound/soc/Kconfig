@@ -48,7 +48,12 @@ source "sound/soc/s6000/Kconfig"
 source "sound/soc/sh/Kconfig"
 source "sound/soc/tegra/Kconfig"
 source "sound/soc/txx9/Kconfig"
-
+source "sound/soc/sun7i/Kconfig"
+source "sound/soc/sun7i/hdmiaudio/Kconfig"
+source "sound/soc/sun7i/hdcp/Kconfig"
+source "sound/soc/sun7i/spdif/Kconfig"
+source "sound/soc/sun7i/i2s/Kconfig"
+source "sound/soc/sun7i/pcm/Kconfig"
 # Supported codecs
 source "sound/soc/codecs/Kconfig"
 

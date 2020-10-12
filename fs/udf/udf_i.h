@@ -43,4 +43,11 @@ static inline struct udf_inode_info *UDF_I(struct inode *inode)
 	return list_entry(inode, struct udf_inode_info, vfs_inode);
 }
 
+struct udf_phy_info{
+	unsigned long	i_ino;
+	uint32_t		elen;
+	sector_t		offset;
+	long			phy_blk;
+	sector_t		block;
+};
 #endif /* _UDF_I_H) */

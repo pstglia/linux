@@ -275,6 +275,7 @@ config WIFI_CONTROL_FUNC
 
 source "drivers/net/wireless/ath/Kconfig"
 source "drivers/net/wireless/b43/Kconfig"
+source "drivers/net/wireless/bcm4330/Kconfig"
 source "drivers/net/wireless/b43legacy/Kconfig"
 source "drivers/net/wireless/bcmdhd/Kconfig"
 source "drivers/net/wireless/brcm80211/Kconfig"
@@ -292,5 +293,11 @@ source "drivers/net/wireless/wl1251/Kconfig"
 source "drivers/net/wireless/wl12xx/Kconfig"
 source "drivers/net/wireless/zd1211rw/Kconfig"
 source "drivers/net/wireless/mwifiex/Kconfig"
+source "drivers/net/wireless/rtl8192cu/Kconfig"
+source "drivers/net/wireless/rtl8188eu/Kconfig"
+source "drivers/net/wireless/rtl8189es/Kconfig"
+source "drivers/net/wireless/rtl8723as/Kconfig"
+source "drivers/net/wireless/rtl8723au/Kconfig"
+source "drivers/net/wireless/rtl8821au/Kconfig"
 
 endif # WLAN

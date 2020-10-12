@@ -1970,10 +1970,13 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 	mmc_send_if_cond(host, host->ocr_avail);
 
 	/* Order's important: probe SDIO, then SD, then MMC */
+	pr_info("*******************Try sdio*******************\n");
 	if (!mmc_attach_sdio(host))
 		return 0;
+	pr_info("*******************Try sd*******************\n");
 	if (!mmc_attach_sd(host))
 		return 0;
+	pr_info("*******************Try mmc*******************\n");
 	if (!mmc_attach_mmc(host))
 		return 0;
 

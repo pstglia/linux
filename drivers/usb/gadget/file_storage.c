@@ -329,8 +329,8 @@ static struct {
 } mod_data = {					// Default values
 	.transport_parm		= "BBB",
 	.protocol_parm		= "SCSI",
-	.removable		= 0,
-	.can_stall		= 1,
+	.removable		= 1,
+	.can_stall		= 0,
 	.cdrom			= 0,
 	.vendor			= FSG_VENDOR_ID,
 	.product		= FSG_PRODUCT_ID,
@@ -3568,6 +3568,7 @@ static int __init fsg_bind(struct usb_gadget *gadget)
 
 	/* Tell the thread to start working */
 	wake_up_process(fsg->thread_task);
+	usb_gadget_connect(gadget);
 	return 0;
 
 autoconf_fail:

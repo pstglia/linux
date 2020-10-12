@@ -73,6 +73,8 @@ void __init r8a7779_register_twd(void)
 }
 #endif
 
+static DEFINE_TWD_LOCAL_TIMER(twd_local_timer, 0xf0000600, 29);
+
 static void modify_scu_cpu_psr(unsigned long set, unsigned long clr)
 {
 	void __iomem *scu_base = scu_base_addr();

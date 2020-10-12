@@ -105,6 +105,8 @@ static int phy_config_interrupt(struct phy_device *phydev, u32 interrupts)
 static inline int phy_aneg_done(struct phy_device *phydev)
 {
 	int retval;
+	if (phydev->drv->aneg_done)
+		return phydev->drv->aneg_done(phydev);
 
 	retval = phy_read(phydev, MII_BMSR);
 
@@ -299,6 +301,49 @@ int phy_ethtool_gset(struct phy_device *phydev, struct ethtool_cmd *cmd)
 }
 EXPORT_SYMBOL(phy_ethtool_gset);
 
+int phy_ethtool_ioctl(struct phy_device *phydev, void *useraddr)
+{
+	u32 cmd;
+	int tmp;
+	struct ethtool_cmd ecmd = { ETHTOOL_GSET };
+	struct ethtool_value edata = { ETHTOOL_GLINK };
+	if (get_user(cmd, (u32 *) useraddr))
+		return -EFAULT;
+
+	switch (cmd) {
+	case ETHTOOL_GSET:
+		phy_ethtool_gset(phydev, &ecmd);
+		if (copy_to_user(useraddr, &ecmd, sizeof(ecmd)))
+			return -EFAULT;
+		return 0;
+
+	case ETHTOOL_SSET:
+		if (copy_from_user(&ecmd, useraddr, sizeof(ecmd)))
+			return -EFAULT;
+		return phy_ethtool_sset(phydev, &ecmd);
+
+	case ETHTOOL_NWAY_RST:
+		/* if autoneg is off, it's an error */
+		tmp = phy_read(phydev, MII_BMCR);
+		if (tmp & BMCR_ANENABLE) {
+			tmp |= (BMCR_ANRESTART);
+			phy_write(phydev, MII_BMCR, tmp);
+			return 0;
+		}
+		return -EINVAL;
+
+	case ETHTOOL_GLINK:
+		edata.data = (phy_read(phydev,
+				MII_BMSR) & BMSR_LSTATUS) ? 1 : 0;
+		if (copy_to_user(useraddr, &edata, sizeof(edata)))
+			return -EFAULT;
+		return 0;
+	}
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(phy_ethtool_ioctl);
+
 /**
  * phy_mii_ioctl - generic PHY MII ioctl interface
  * @phydev: the phy_device struct
@@ -403,7 +448,11 @@ int phy_start_aneg(struct phy_device *phydev)
 	if (phydev->state != PHY_HALTED) {
 		if (AUTONEG_ENABLE == phydev->autoneg) {
 			phydev->state = PHY_AN;
+#if 0  /* bpi */
 			phydev->link_timeout = PHY_AN_TIMEOUT;
+#else
+			phydev->link_timeout = 5;
+#endif
 		} else {
 			phydev->state = PHY_FORCING;
 			phydev->link_timeout = PHY_FORCE_TIMEOUT;
@@ -482,7 +531,7 @@ static void phy_force_reduction(struct phy_device *phydev)
 	phydev->speed = settings[idx].speed;
 	phydev->duplex = settings[idx].duplex;
 
-	pr_info("Trying %d/%s\n", phydev->speed,
+	pr_info("%s: Trying %d/%s\n", __func__, phydev->speed,
 			DUPLEX_FULL == phydev->duplex ?
 			"FULL" : "HALF");
 }
@@ -778,6 +827,8 @@ void phy_state_machine(struct work_struct *work)
 	if (phydev->adjust_state)
 		phydev->adjust_state(phydev->attached_dev);
 
+	//printk(KERN_ERR "%s: phydev->state = %d\n", __func__, phydev->state);
+
 	switch(phydev->state) {
 		case PHY_DOWN:
 		case PHY_STARTING:
@@ -838,7 +889,7 @@ void phy_state_machine(struct work_struct *work)
 
 				phydev->autoneg = AUTONEG_DISABLE;
 
-				pr_info("Trying %d/%s\n", phydev->speed,
+				pr_info("%s: Trying %d/%s\n", __func__, phydev->speed,
 						DUPLEX_FULL ==
 						phydev->duplex ?
 						"FULL" : "HALF");

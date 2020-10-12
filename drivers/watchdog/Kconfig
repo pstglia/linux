@@ -349,6 +349,19 @@ config IMX2_WDT
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx2_wdt.
 
+config SUNXI_WDT
+	tristate "Reuuimlla sunxi Watchdog"
+	depends on ARCH_SUN7I
+	help
+	  This is the driver for the hardware watchdog on the Reuuimlla
+	  SUNXI processors.
+
+	  If you have one of these processors and wish to have
+	  watchdog support enabled, say Y, otherwise say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sunxi_wdt.
+
 # AVR32 Architecture
 
 config AT32AP700X_WDT

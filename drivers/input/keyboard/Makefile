@@ -52,3 +52,6 @@ obj-$(CONFIG_KEYBOARD_TNETV107X)	+= tnetv107x-keypad.o
 obj-$(CONFIG_KEYBOARD_TWL4030)		+= twl4030_keypad.o
 obj-$(CONFIG_KEYBOARD_XTKBD)		+= xtkbd.o
 obj-$(CONFIG_KEYBOARD_W90P910)		+= w90p910_keypad.o
+obj-$(CONFIG_SUN7I_KEYPAD)          += sun7i-keypad.o
+obj-$(CONFIG_KEYBOARD_SW_KEYBOARD)    	+= sw-keyboard.o
+obj-$(CONFIG_IR_SUN7I)                  += sun7i-ir.o

@@ -2214,6 +2214,7 @@ unsigned long this_cpu_load(void)
 static atomic_long_t calc_load_tasks;
 static unsigned long calc_load_update;
 unsigned long avenrun[3];
+unsigned long avenrun_sec[1];
 EXPORT_SYMBOL(avenrun); /* should be removed */
 
 /**
@@ -2231,6 +2232,12 @@ void get_avenrun(unsigned long *loads, unsigned long offset, int shift)
 	loads[2] = (avenrun[2] + offset) << shift;
 }
 
+void get_avenrun_sec(unsigned long *loads, unsigned long offset, int shift)
+{
+	loads[0] = (avenrun_sec[0] + offset) << shift;
+	loads[1] = (avenrun[0] + offset) << shift;
+	loads[2] = atomic_long_read(&calc_load_tasks);
+}
 static long calc_load_fold_active(struct rq *this_rq)
 {
 	long nr_active, delta = 0;
@@ -2470,6 +2477,7 @@ static void calc_global_nohz(void)
 		avenrun[0] = calc_load_n(avenrun[0], EXP_1, active, n);
 		avenrun[1] = calc_load_n(avenrun[1], EXP_5, active, n);
 		avenrun[2] = calc_load_n(avenrun[2], EXP_15, active, n);
+		avenrun_sec[0] = calc_load_n(avenrun_sec[0], EXP_5sec, active, n);
 
 		calc_load_update += n * LOAD_FREQ;
 	}
@@ -2515,6 +2523,7 @@ void calc_global_load(unsigned long ticks)
 	avenrun[0] = calc_load(avenrun[0], EXP_1, active);
 	avenrun[1] = calc_load(avenrun[1], EXP_5, active);
 	avenrun[2] = calc_load(avenrun[2], EXP_15, active);
+	avenrun_sec[0] = calc_load(avenrun_sec[0], EXP_5sec, active);
 
 	calc_load_update += LOAD_FREQ;
 

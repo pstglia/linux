@@ -1360,4 +1360,17 @@ config SERIAL_EFM32_UART_CONSOLE
 	depends on SERIAL_EFM32_UART=y
 	select SERIAL_CORE_CONSOLE
 
+config SERIAL_SW
+	tristate "Winner serial ports"
+	select SERIAL_CORE
+	help
+	  If you have an Winner SOC based board and want to use the
+	  built-in UART of the SoC, say Y to this option.
+
+config SERIAL_SW_CONSOLE
+	bool "Console on Winner serial port"
+	depends on SERIAL_SW=y
+	select SERIAL_CORE_CONSOLE
+	help
+
 endmenu

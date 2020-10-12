@@ -485,6 +485,93 @@ MACHINE_START(VEXPRESS, "ARM-Versatile Express")
 MACHINE_END
 
 #if defined(CONFIG_ARCH_VEXPRESS_DT)
+/*
+ * Platform data for the motherboard CLCD. There is an HDLCD on the core
+ * tile but there is no driver for it in mainline. Furthermore, there
+ * aren't any existing bindings for LCD controllers so the whole thing
+ * is a temporary kludge.
+ */
+#include <linux/amba/clcd.h>
+
+static struct clcd_panel xvga_panel = {
+	.mode		= {
+		.name		= "XVGA",
+		.refresh	= 60,
+		.xres		= 1024,
+		.yres		= 768,
+		.pixclock	= 15384,
+		.left_margin	= 168,
+		.right_margin	= 8,
+		.upper_margin	= 29,
+		.lower_margin	= 3,
+		.hsync_len	= 144,
+		.vsync_len	= 6,
+		.sync		= 0,
+		.vmode		= FB_VMODE_NONINTERLACED,
+	},
+	.width		= -1,
+	.height		= -1,
+	.tim2		= TIM2_BCD | TIM2_IPC,
+	.cntl		= CNTL_LCDTFT | CNTL_BGR | CNTL_LCDVCOMP(1),
+	.bpp		= 16,
+};
+
+static void v2m_clcd_enable(struct clcd_fb *fb)
+{
+	v2m_cfg_write(SYS_CFG_MUXFPGA | SYS_CFG_SITE_MB, 0);
+}
+
+static int v2m_clcd_setup(struct clcd_fb *fb)
+{
+	unsigned long framesize = 1024 * 768 * 2;
+	struct device_node *node;
+	void *screen_base;
+
+	node = of_find_compatible_node(NULL, NULL, "arm,vexpress-vram");
+	screen_base = of_iomap(node, 0);
+
+	if (!screen_base)
+		return -ENOMEM;
+
+	fb->fb.screen_base = screen_base;
+	fb->panel = &xvga_panel;
+	fb->fb.fix.smem_start = of_translate_address(node, of_get_address(node, 0, NULL, NULL));
+	fb->fb.fix.smem_len = framesize;
+
+	return 0;
+}
+
+static int v2m_clcd_mmap(struct clcd_fb *fb, struct vm_area_struct *vma)
+{
+	unsigned long off, user_size, kern_size;
+
+	off = vma->vm_pgoff << PAGE_SHIFT;
+	user_size = vma->vm_end - vma->vm_start;
+	kern_size = fb->fb.fix.smem_len;
+
+	if (off >= kern_size || user_size > (kern_size - off))
+		return -ENXIO;
+
+	return remap_pfn_range(vma, vma->vm_start,
+			__phys_to_pfn(fb->fb.fix.smem_start) + vma->vm_pgoff,
+			user_size,
+			pgprot_writecombine(vma->vm_page_prot));
+}
+
+static void v2m_clcd_remove(struct clcd_fb *fb)
+{
+	iounmap(fb->fb.screen_base);
+}
+
+static struct clcd_board v2m_clcd_data = {
+	.name		= "V2M",
+	.check		= clcdfb_check,
+	.decode		= clcdfb_decode,
+	.enable		= v2m_clcd_enable,
+	.setup		= v2m_clcd_setup,
+	.mmap		= v2m_clcd_mmap,
+	.remove		= v2m_clcd_remove,
+};
 
 static struct map_desc v2m_rs1_io_desc __initdata = {
 	.virtual	= V2M_PERIPH,

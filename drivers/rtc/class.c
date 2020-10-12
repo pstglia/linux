@@ -19,7 +19,7 @@
 #include <linux/workqueue.h>
 
 #include "rtc-core.h"
-
+#include <linux/pm.h>
 
 static DEFINE_IDA(rtc_ida);
 struct class *rtc_class;
@@ -39,6 +39,12 @@ static void rtc_device_release(struct device *dev)
  */
 
 static struct timespec old_rtc, old_system, old_delta;
+struct rtc_info_s {
+    struct delayed_work sleeptime_work;
+    struct device *dev;
+    unsigned int count;
+};
+static struct rtc_info_s sleeptime_rtc_info;
 
 
 static int rtc_suspend(struct device *dev, pm_message_t mesg)
@@ -49,6 +55,7 @@ static int rtc_suspend(struct device *dev, pm_message_t mesg)
 	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
 		return 0;
 
+    cancel_delayed_work_sync(&sleeptime_rtc_info.sleeptime_work);
 	/* snapshot the current RTC and system time at suspend*/
 	rtc_read_time(rtc, &tm);
 	getnstimeofday(&old_system);
@@ -77,46 +84,66 @@ static int rtc_suspend(struct device *dev, pm_message_t mesg)
 	return 0;
 }
 
-static int rtc_resume(struct device *dev)
+static void do_sleeptime_timer(struct work_struct *work)
 {
-	struct rtc_device	*rtc = to_rtc_device(dev);
+    struct rtc_info_s *prtc_info =
+        container_of(work, struct rtc_info_s, sleeptime_work.work);
+	struct rtc_device	*rtc = to_rtc_device(prtc_info->dev);
 	struct rtc_time		tm;
 	struct timespec		new_system, new_rtc;
 	struct timespec		sleep_time;
 
-	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
-		return 0;
+	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0){
+		return;
+	}
 
 	/* snapshot the current rtc and system time at resume */
 	getnstimeofday(&new_system);
 	rtc_read_time(rtc, &tm);
 	if (rtc_valid_tm(&tm) != 0) {
 		pr_debug("%s:  bogus resume time\n", dev_name(&rtc->dev));
-		return 0;
+		return;
 	}
 	rtc_tm_to_time(&tm, &new_rtc.tv_sec);
 	new_rtc.tv_nsec = 0;
 
 	if (new_rtc.tv_sec < old_rtc.tv_sec) {
 		pr_debug("%s:  time travel!\n", dev_name(&rtc->dev));
-		return 0;
+		return;
 	}
 
 	/* calculate the RTC time delta (sleep time)*/
 	sleep_time = timespec_sub(new_rtc, old_rtc);
 
-	/*
-	 * Since these RTC suspend/resume handlers are not called
-	 * at the very end of suspend or the start of resume,
-	 * some run-time may pass on either sides of the sleep time
-	 * so subtract kernel run-time between rtc_suspend to rtc_resume
-	 * to keep things accurate.
-	 */
-	sleep_time = timespec_sub(sleep_time,
-			timespec_sub(new_system, old_system));
+    if (sleep_time.tv_sec > 1){
+        /*
+         * Since these RTC suspend/resume handlers are not called
+         * at the very end of suspend or the start of resume,
+         * some run-time may pass on either sides of the sleep time
+         * so subtract kernel run-time between rtc_suspend to rtc_resume
+         * to keep things accurate.
+         */
+        sleeptime_rtc_info.count = 0;
+        sleep_time = timespec_sub(sleep_time,
+                timespec_sub(new_system, old_system));
+        
+        if (sleep_time.tv_sec >= 0)
+            timekeeping_inject_sleeptime(&sleep_time);
+    }else{
+        sleeptime_rtc_info.count++;
+        //at most 2s 
+        if(sleeptime_rtc_info.count <= 10){
+            schedule_delayed_work_on(0, &prtc_info->sleeptime_work, msecs_to_jiffies(200));
+        }
+    }
+	return;    
+}
 
-	if (sleep_time.tv_sec >= 0)
-		timekeeping_inject_sleeptime(&sleep_time);
+static int rtc_resume(struct device *dev)
+{
+    sleeptime_rtc_info.dev = dev;
+    do_sleeptime_timer(&sleeptime_rtc_info.sleeptime_work.work);
+    //schedule_delayed_work_on(0, &sleeptime_rtc_info.sleeptime_work, msecs_to_jiffies(50));
 	return 0;
 }
 
@@ -253,6 +280,11 @@ static int __init rtc_init(void)
 	}
 	rtc_class->suspend = rtc_suspend;
 	rtc_class->resume = rtc_resume;
+#if defined(CONFIG_PM) && defined(CONFIG_RTC_HCTOSYS_DEVICE)
+    INIT_DELAYED_WORK_DEFERRABLE(&sleeptime_rtc_info.sleeptime_work, do_sleeptime_timer);
+    sleeptime_rtc_info.dev = NULL;
+    sleeptime_rtc_info.count = 0;
+#endif
 	rtc_dev_init();
 	rtc_sysfs_init(rtc_class);
 	return 0;

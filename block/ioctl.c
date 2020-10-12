@@ -167,7 +167,7 @@ int __blkdev_driver_ioctl(struct block_device *bdev, fmode_t mode,
 {
 	struct gendisk *disk = bdev->bd_disk;
 
-	if (disk->fops->ioctl)
+	if (disk && disk->fops && disk->fops->ioctl)
 		return disk->fops->ioctl(bdev, mode, cmd, arg);
 
 	return -ENOTTY;

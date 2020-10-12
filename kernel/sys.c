@@ -2058,3 +2058,14 @@ int orderly_poweroff(bool force)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(orderly_poweroff);
+
+static long bid = -1;
+SYSCALL_DEFINE0(getbid)
+{
+    return bid;
+}
+
+SYSCALL_DEFINE1(setbid, long, value)
+{
+    bid = value;
+}

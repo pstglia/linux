@@ -304,8 +304,7 @@ void machine_shutdown(void)
 	 * thread that might wind up blocking on
 	 * one of the stopped CPUs.
 	 */
-	preempt_disable();
-
+	//preempt_disable();
 	smp_send_stop();
 #endif
 }

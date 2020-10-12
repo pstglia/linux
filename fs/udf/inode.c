@@ -321,17 +321,33 @@ struct buffer_head *udf_expand_dir_adinicb(struct inode *inode, int *block,
 	return dbh;
 }
 
+struct udf_phy_info phy_info = {0, 0, 0, 0, 0xffffffffffffffff};
 static int udf_get_block(struct inode *inode, sector_t block,
 			 struct buffer_head *bh_result, int create)
 {
 	int err, new;
-	sector_t phys = 0;
+	sector_t phys = 0, temp;
 	struct udf_inode_info *iinfo;
+	unsigned int total_len = 1;
 
+	if(bh_result){
+		total_len = bh_result->b_size >> inode->i_blkbits;
+	}
 	if (!create) {
-		phys = udf_block_map(inode, block);
-		if (phys)
+		temp = block - phy_info.block;
+		temp += phy_info.offset;
+		temp <<= inode->i_blkbits;
+		if(temp >= phy_info.elen || block == 0 || phy_info.i_ino != inode->i_ino){
+			phys = udf_block_map(inode, block, &phy_info);
+			phy_info.block = block;
+			phy_info.i_ino = inode->i_ino;
+		}
+		else{
+			phys = phy_info.phy_blk + block - phy_info.block;
+		}
+		if(phys){
 			map_bh(bh_result, inode->i_sb, phys);
+		}
 		return 0;
 	}
 
@@ -2153,7 +2169,7 @@ int8_t inode_bmap(struct inode *inode, sector_t block,
 	return etype;
 }
 
-long udf_block_map(struct inode *inode, sector_t block)
+long udf_block_map(struct inode *inode, sector_t block,struct udf_phy_info *phy_info)
 {
 	struct kernel_lb_addr eloc;
 	uint32_t elen;
@@ -2169,6 +2185,11 @@ long udf_block_map(struct inode *inode, sector_t block)
 	else
 		ret = 0;
 
+	if(phy_info){
+		phy_info->elen = elen;
+		phy_info->offset = offset;
+		phy_info->phy_blk = ret;
+	}
 	up_read(&UDF_I(inode)->i_data_sem);
 	brelse(epos.bh);
 

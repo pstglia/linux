@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/io.h>
 
 #include <linux/atomic.h>
 #include <asm/cacheflush.h>
@@ -34,6 +35,7 @@
 #include <asm/unwind.h>
 #include <asm/tls.h>
 #include <asm/system_misc.h>
+#include <mach/platform.h>
 
 #include "signal.h"
 
@@ -233,11 +235,52 @@ void show_stack(struct task_struct *tsk, unsigned long *sp)
 #define S_ISA " ARM"
 #endif
 
+#ifdef CONFIG_ARCH_SUN7I
+/* jtag pin from port PF(sdc0) */
+#define PF_CONFIG0_REG_VA (SW_PA_PORTC_IO_BASE + 0xf0000000 + 0xb4)
+#define PF_JTAG_EN_MASK   ((0x4<<20)|(0x4<<12) |(0x4<<4)|0x4)
+#define PF_JTAG_PIN_MASK  ((0x7<<20)|(0x7<<12) |(0x7<<4)|0x7)
+
+/* jtag pin from port PB */
+#define PB_CONFIG1_REG_VA  (SW_PA_PORTC_IO_BASE + 0xf0000000 + 0x28)
+#define PB_CONFIG2_REG_VA  (SW_PA_PORTC_IO_BASE + 0xf0000000 + 0x2c)
+#define PB_JTAG_EN_MASK1   ((0x3<<28)|(0x3<<24))
+#define PB_JTAG_PIN_MASK1  ((0x7<<28)|(0x7<<24))
+#define PB_JTAG_EN_MASK2   (0x3|(0x3<<4))
+#define PB_JTAG_PIN_MASK2  (0x7|(0x7<<4))
+
+/* PLL1 */
+#define PLL1_REG_VA (SW_PA_CCM_IO_BASE + 0xf0000000)
+#endif
+
 static int __die(const char *str, int err, struct thread_info *thread, struct pt_regs *regs)
 {
 	struct task_struct *tsk = thread->task;
 	static int die_counter;
 	int ret;
+
+#ifdef CONFIG_ARCH_SUN7I
+    int val;
+    int pll1;
+
+    val = readl(PB_CONFIG1_REG_VA);
+    val &= ~PB_JTAG_PIN_MASK1;
+    writel(val, PB_CONFIG1_REG_VA);     /* disable PB JTAG */
+
+    val = readl(PB_CONFIG2_REG_VA);
+    val &= ~PB_JTAG_PIN_MASK2;
+    writel(val, PB_CONFIG2_REG_VA);     /* disable PB JTAG */
+
+    val = readl(PF_CONFIG0_REG_VA);
+    val &= ~PF_JTAG_PIN_MASK;
+    val |= PF_JTAG_EN_MASK;
+    writel(val, PF_CONFIG0_REG_VA);     /* enable PF JTAG */
+
+    pll1 = readl(PLL1_REG_VA);
+    printk(KERN_EMERG "Internal error: [CPU_FREQ=24*N*K/(M*P) MHz], N=%u, K=%u, M=%u, P=%u\n",
+        (pll1>>8)&0x1f, ((pll1>>4)&0x03) + 1, ((pll1)&0x03) + 1, ((pll1>>16)&0x03) + 1);
+	printk(KERN_EMERG "Internal error: enable JTAG PB/PF\n");
+#endif
 
 	printk(KERN_EMERG "Internal error: %s: %x [#%d]" S_PREEMPT S_SMP
 	       S_ISA "\n", str, err, ++die_counter);

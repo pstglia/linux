@@ -80,7 +80,7 @@ uint32_t udf_get_pblock_virt15(struct super_block *sb, uint32_t block,
 		index = vdata->s_start_offset / sizeof(uint32_t) + block;
 	}
 
-	loc = udf_block_map(sbi->s_vat_inode, newblock);
+	loc = udf_block_map(sbi->s_vat_inode, newblock, NULL);
 
 	bh = sb_bread(sb, loc);
 	if (!bh) {

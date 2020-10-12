@@ -1222,3 +1222,23 @@ config VIDEO_MX2_EMMAPRP
 	    conversion.
 
 endif # V4L_MEM2MEM_DRIVERS
+config VIDEO_SUN7I_CEDAR
+       tristate "CEDAR driver for sun7i"
+       #depends on ARCH_SUN7I
+       help
+         CEDAR driver for sun7i
+
+if VIDEO_SUN7I_CEDAR
+source "drivers/media/video/sun7i/Kconfig"
+endif
+menuconfig VIDEO_CSI_SUNXI
+	bool "CSI Driver Config for sunxi"
+	default m
+	depends on VIDEO_DEV && VIDEO_V4L2
+
+if VIDEO_CSI_SUNXI
+source "drivers/media/video/sunxi_csi/Kconfig"
+endif
+
+source "drivers/media/video/tsc/Kconfig"
+source "drivers/media/video/sun7i_tvd/Kconfig"

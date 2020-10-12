@@ -201,6 +201,82 @@ static __maybe_unused void ehci_adjust_port_wakeup_flags(struct ehci_hcd *ehci,
 	spin_unlock_irqrestore(&ehci->lock, flags);
 }
 
+extern int sw_usb_suspend_disabled(int usbc_no);
+static void ehci_suspend_port(struct usb_hcd *hcd)
+{
+    struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+    int			port;
+    port = HCS_N_PORTS(ehci->hcs_params);
+	while (port--) {
+		u32 __iomem	*reg = &ehci->regs->port_status [port];
+		u32		t1 = ehci_readl(ehci, reg) & ~PORT_RWC_BITS;
+		u32		t2 = t1 & ~PORT_WAKE_BITS;
+
+		/* keep track of which ports we suspend */
+		if (t1 & PORT_OWNER)
+			set_bit(port, &ehci->owned_ports);
+		else if ((t1 & PORT_PE) && !(t1 & PORT_SUSPEND)) {
+			t2 |= PORT_SUSPEND;
+			set_bit(port, &ehci->bus_suspended);
+		}
+
+		/* enable remote wakeup on all ports, if told to do so */
+		if (hcd->self.root_hub->do_remote_wakeup) {
+			/* only enable appropriate wake bits, otherwise the
+			 * hardware can not go phy low power mode. If a race
+			 * condition happens here(connection change during bits
+			 * set), the port change detection will finally fix it.
+			 */
+			if (t1 & PORT_CONNECT)
+				t2 |= PORT_WKOC_E | PORT_WKDISC_E;
+			else
+				t2 |= PORT_WKOC_E | PORT_WKCONN_E;
+		}
+
+		if (t1 != t2) {
+			ehci_vdbg (ehci, "port %d, %08x -> %08x\n",
+				port + 1, t1, t2);
+			ehci_writel(ehci, t2, reg);			
+		}
+	}
+}
+
+static void ehci_resume_port(struct usb_hcd *hcd)
+{
+    struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+	u32			temp;	
+	unsigned long		resume_needed = 0;
+	int			i;
+	
+    i = HCS_N_PORTS (ehci->hcs_params);
+	while (i--) {
+		temp = ehci_readl(ehci, &ehci->regs->port_status [i]);
+		temp &= ~(PORT_RWC_BITS | PORT_WAKE_BITS);
+		if (test_bit(i, &ehci->bus_suspended) &&
+				(temp & PORT_SUSPEND)) {
+			temp |= PORT_RESUME;
+			set_bit(i, &resume_needed);
+		}
+		ehci_writel(ehci, temp, &ehci->regs->port_status [i]);
+	}
+
+	/* msleep for 20ms only if code is trying to resume port */
+	if (resume_needed) {		
+		msleep(20);		
+	}
+
+	i = HCS_N_PORTS (ehci->hcs_params);
+	while (i--) {
+		temp = ehci_readl(ehci, &ehci->regs->port_status [i]);
+		if (test_bit(i, &resume_needed)) {
+			temp &= ~(PORT_RWC_BITS | PORT_RESUME);
+			ehci_writel(ehci, temp, &ehci->regs->port_status [i]);
+			ehci_vdbg (ehci, "resumed port %d\n", i + 1);
+		}
+	}
+	(void) ehci_readl(ehci, &ehci->regs->command);
+}
+
 static int ehci_bus_suspend (struct usb_hcd *hcd)
 {
 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
@@ -208,7 +284,18 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	int			mask;
 	int			changed;
 
-	ehci_dbg(ehci, "suspend root hub\n");
+    if(hcd->self.busnum == 1 && sw_usb_suspend_disabled(0))
+        goto suspend_port;
+    else if(hcd->self.busnum == 2 && sw_usb_suspend_disabled(1))
+    	goto suspend_port;
+    else if(hcd->self.busnum == 3 && sw_usb_suspend_disabled(1))
+    	goto suspend_port;
+    else if(hcd->self.busnum == 4 && sw_usb_suspend_disabled(2))
+    	goto suspend_port;
+    else if(hcd->self.busnum == 5 && sw_usb_suspend_disabled(2))
+    	goto suspend_port;
+    	
+	ehci_info(ehci, "suspend root hub\n");
 
 	if (time_before (jiffies, ehci->next_statechange))
 		msleep(5);
@@ -326,6 +413,11 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	 */
 	del_timer_sync(&ehci->watchdog);
 	return 0;
+
+suspend_port:
+    ehci_info(ehci, "suspend port\n");
+    ehci_suspend_port(hcd);
+    return 0;
 }
 
 
@@ -337,6 +429,19 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 	u32			power_okay;
 	int			i;
 	unsigned long		resume_needed = 0;
+	
+	if(hcd->self.busnum == 1 && sw_usb_suspend_disabled(0))
+    	goto resume_port;
+    else if(hcd->self.busnum == 2 && sw_usb_suspend_disabled(1))
+    	goto resume_port;
+    else if(hcd->self.busnum == 3 && sw_usb_suspend_disabled(1))
+    	goto resume_port;
+    else if(hcd->self.busnum == 4 && sw_usb_suspend_disabled(2))
+    	goto resume_port;
+    else if(hcd->self.busnum == 5 && sw_usb_suspend_disabled(2))
+    	goto resume_port;
+    	
+	ehci_info(ehci, "resume root hub\n");
 
 	if (time_before (jiffies, ehci->next_statechange))
 		msleep(5);
@@ -374,6 +479,8 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 	ehci_writel(ehci, (u32) ehci->async->qh_dma, &ehci->regs->async_next);
 
 	/* restore CMD_RUN, framelist size, and irq threshold */
+	ehci->command &= ~(CMD_ASE | CMD_IAAD | CMD_PSE);
+    ehci->command |= CMD_RUN;
 	ehci_writel(ehci, ehci->command, &ehci->regs->command);
 	ehci->rh_state = EHCI_RH_RUNNING;
 
@@ -452,6 +559,12 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 	spin_unlock_irq (&ehci->lock);
 	ehci_handover_companion_ports(ehci);
 	return 0;
+
+resume_port:
+    ehci_info(ehci, "resume port\n");
+    ehci_resume_port(hcd);
+    return 0;
+
 }
 
 #else
@@ -977,8 +1090,10 @@ static int ehci_hub_control (
 		temp &= ~PORT_RWC_BITS;
 		switch (wValue) {
 		case USB_PORT_FEAT_SUSPEND:
+		    printk("[%s %d]\n", __func__, __LINE__);
 			if (ehci->no_selective_suspend)
 				break;
+			printk("[%s %d]\n", __func__, __LINE__);	
 			if ((temp & PORT_PE) == 0
 					|| (temp & PORT_RESET) != 0)
 				goto error;

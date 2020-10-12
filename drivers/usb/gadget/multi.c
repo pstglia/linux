@@ -143,7 +143,10 @@ static struct usb_gadget_strings *dev_strings[] = {
 
 /****************************** Configurations ******************************/
 
-static struct fsg_module_parameters fsg_mod_data = { .stall = 1 };
+static struct fsg_module_parameters fsg_mod_data = { 
+    .file[0] = "/dev/mmcblk0";
+    .stall = 1 
+};
 FSG_MODULE_PARAMETERS(/* no prefix */, fsg_mod_data);
 
 static struct fsg_common fsg_common;

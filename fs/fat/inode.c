@@ -1007,7 +1007,7 @@ static int parse_options(struct super_block *sb, char *options, int is_vfat,
 	opts->numtail = 1;
 	opts->usefree = opts->nocase = 0;
 	opts->tz_utc = 0;
-	opts->errors = FAT_ERRORS_RO;
+	opts->errors = FAT_ERRORS_CONT;
 	*debug = 0;
 
 	if (!options)

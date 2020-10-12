@@ -521,6 +521,7 @@ void __handle_sysrq(int key, bool check_mask)
 		 */
 		if (!check_mask || sysrq_on_mask(op_p->enable_mask)) {
 			printk("%s\n", op_p->action_msg);
+			printk(KERN_WARNING "The process is \"%s\" (pid %i)\n", current->comm, current->pid);
 			console_loglevel = orig_log_level;
 			op_p->handler(key);
 		} else {

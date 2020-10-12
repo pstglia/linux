@@ -261,6 +261,30 @@ err:
 	return rv;
 }
 
+/* Gobi devices uses identical class/protocol codes for all interfaces regardless
+ * of function. Some of these are CDC ACM like and have the exact same endpoints
+ * we are looking for. This leaves two possible strategies for identifying the
+ * correct interface:
+ *   a) hardcoding interface number, or
+ *   b) use the fact that the wwan interface is the only one lacking additional
+ *      (CDC functional) descriptors
+ *
+ * Let's see if we can get away with the generic b) solution.
+ */
+static int qmi_wwan_bind_gobi(struct usbnet *dev, struct usb_interface *intf)
+{
+	int rv = -EINVAL;
+
+	/* ignore any interface with additional descriptors */
+	if (intf->cur_altsetting->extralen)
+		goto err;
+
+	rv = qmi_wwan_bind_shared(dev, intf);
+err:
+	return rv;
+}
+
+
 static void qmi_wwan_unbind_shared(struct usbnet *dev, struct usb_interface *intf)
 {
 	struct usb_driver *subdriver = (void *)dev->data[0];
@@ -373,6 +397,15 @@ static const struct driver_info	qmi_wwan_force_int4 = {
 	.data		= BIT(4), /* interface whitelist bitmap */
 };
 
+static const struct driver_info	qmi_wwan_gobi = {
+	.description	= "Qualcomm Gobi wwan/QMI device",
+	.flags		= FLAG_WWAN,
+	.bind		= qmi_wwan_bind_gobi,
+	.unbind		= qmi_wwan_unbind_shared,
+	.manage_power	= qmi_wwan_manage_power,
+};
+
+
 /* Sierra Wireless provide equally useless interface descriptors
  * Devices in QMI mode can be switched between two different
  * configurations:
@@ -406,6 +439,11 @@ static const struct driver_info	qmi_wwan_sierra = {
 #define QMI_GOBI_DEVICE(vend, prod) \
 	USB_DEVICE(vend, prod), \
 	.driver_info = (unsigned long)&qmi_wwan_force_int0
+
+/* Gobi 7100c interface number is 5 */
+#define QMI_GOBI_7100_DEVICE(vend, prod) \
+	USB_DEVICE(vend, prod), \
+	.driver_info = (unsigned long)&qmi_wwan_gobi
 
 static const struct usb_device_id products[] = {
 	{	/* Huawei E392, E398 and possibly others sharing both device id and more... */
@@ -625,6 +663,7 @@ static const struct usb_device_id products[] = {
 	{QMI_GOBI_DEVICE(0x1199, 0x9015)},	/* Sierra Wireless Gobi 3000 Modem device */
 	{QMI_GOBI_DEVICE(0x1199, 0x9019)},	/* Sierra Wireless Gobi 3000 Modem device */
 	{QMI_GOBI_DEVICE(0x1199, 0x901b)},	/* Sierra Wireless MC7770 */
+	{QMI_GOBI_7100_DEVICE(0x1e0e, 0x9001)},	/* SIM700 Modem Device */
 
 	{ }					/* END */
 };

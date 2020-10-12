@@ -51,6 +51,9 @@ static inline void putc(int c)
 {
 	unsigned long base = get_uart_base();
 
+	if (!base)
+		return;
+
 	while (AMBA_UART_FR(base) & (1 << 5))
 		barrier();
 
@@ -60,6 +63,9 @@ static inline void putc(int c)
 static inline void flush(void)
 {
 	unsigned long base = get_uart_base();
+
+	if (!base)
+		return;
 
 	while (AMBA_UART_FR(base) & (1 << 3))
 		barrier();

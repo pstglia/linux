@@ -1970,7 +1970,7 @@ int hcd_bus_suspend(struct usb_device *rhdev, pm_message_t msg)
 		status = -ENOENT;
 	} else {
 		clear_bit(HCD_FLAG_RH_RUNNING, &hcd->flags);
-		hcd->state = HC_STATE_QUIESCING;
+		hcd->state = HC_STATE_QUIESCING;		
 		status = hcd->driver->bus_suspend(hcd);
 	}
 	if (status == 0) {

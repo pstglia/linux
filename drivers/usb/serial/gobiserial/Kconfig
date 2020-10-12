@@ -1,0 +1,5 @@
+config USB_GOBISERIAL
+	tristate "SIMCOM Modem USB Serial driver"
+	default y
+	help
+	  usb serial driver for SIMCOM modem

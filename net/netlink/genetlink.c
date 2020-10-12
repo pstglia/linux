@@ -287,7 +287,6 @@ static void genl_unregister_mc_groups(struct genl_family *family)
 int genl_register_ops(struct genl_family *family, struct genl_ops *ops)
 {
 	int err = -EINVAL;
-
 	if (ops->dumpit == NULL && ops->doit == NULL)
 		goto errout;
 
@@ -447,7 +446,6 @@ int genl_register_family_with_ops(struct genl_family *family,
 	struct genl_ops *ops, size_t n_ops)
 {
 	int err, i;
-
 	err = genl_register_family(family);
 	if (err)
 		return err;

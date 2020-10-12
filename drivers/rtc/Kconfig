@@ -105,7 +105,37 @@ config RTC_INTF_DEV_UIE_EMUL
 	  The emulation code will read the time from the hardware
 	  clock several times per second, please enable this option
 	  only if you know that you really need it.
+config RTC_INTF_ALARM
+       bool "Android alarm driver"
+       depends on RTC_CLASS
+       default y
+       help
+         Provides non-wakeup and rtc backed wakeup alarms based on rtc or
+         elapsed realtime, and a non-wakeup alarm on the monotonic clock.
+         Also provides an interface to set the wall time which must be used
+         for elapsed realtime to work.
 
+config RTC_INTF_ALARM_DEV
+       bool "Android alarm device"
+       depends on RTC_INTF_ALARM
+       default y
+       help
+         Exports the alarm interface to user-space.
+config RTC_ALARM_CLOCK_WAKEUP
+       bool "android alarm clock wakeup"
+       default n
+       help
+               when the system enter standby, some applications from android
+                will set its ownself wakeup time to the hardware. in order to
+                prevent the alarm time from other apllications, set the config.
+                if the config is y, only the alarm time can wake up the hardware.
+
+config RTC_ALARM_SHUTDOWN_WAKEUP
+       bool "android alarm shutdown wakeup"
+       default n
+       help
+               support the alarm wakeup at A1X platform.
+               
 config RTC_DRV_TEST
 	tristate "Test driver/device"
 	help
@@ -954,6 +984,11 @@ config RTC_DRV_TX4939
 	help
 	  Driver for the internal RTC (Realtime Clock) module found on
 	  Toshiba TX4939 SoC.
+
+config RTC_DRV_SUN7I
+	tristate "sun7i rtc driver"	
+	help
+	  sun7i rtc driver
 
 config RTC_DRV_MV
 	tristate "Marvell SoC RTC"

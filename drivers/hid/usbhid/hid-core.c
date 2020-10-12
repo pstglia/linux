@@ -36,6 +36,7 @@
 #include <linux/hid-debug.h>
 #include <linux/hidraw.h>
 #include "usbhid.h"
+#include <linux/power/aw_pm.h>
 
 /*
  * Version Information
@@ -1425,6 +1426,141 @@ void usbhid_put_power(struct hid_device *hid)
 }
 
 
+static int usbhid_wakeup_enable = 0;
+
+
+#include  <linux/usb/ch9.h>
+#include  <linux/usb/ch11.h>
+
+static int g_remote_wakeup = 0;
+
+static int usbhid_remote_wakeup(struct usb_device *udev, u32 suspend)
+{
+	struct usb_device *hdev = NULL;
+    struct usb_port_status data;
+    int status = 0;
+	int port1 = 0;
+
+    printk("%s: %s\n", __func__, suspend ? "suspend" : "resume");
+
+    if(!udev->parent){
+        port1 = 1;
+        hdev = udev;
+    }else{
+        port1 = udev->portnum;
+        hdev = udev->parent;
+    }
+
+    if(suspend){
+
+        printk("%s: set remote wakeup\n", __func__);
+
+    	g_remote_wakeup = 1;
+
+        /* set remote wakeup 
+        status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
+				USB_REQ_SET_FEATURE, USB_RECIP_DEVICE,
+				USB_DEVICE_REMOTE_WAKEUP, 0,
+				NULL, 0,
+				USB_CTRL_SET_TIMEOUT);
+		if(status){
+		    printk("err: set parent hub remote wakeup failed\n");
+		    return -1;
+		}*/
+		
+        /* set remote wakeup */
+        status = usb_control_msg(udev, usb_sndctrlpipe(udev, 0),
+				USB_REQ_SET_FEATURE, USB_RECIP_DEVICE,
+				USB_DEVICE_REMOTE_WAKEUP, 0,
+				NULL, 0,
+				USB_CTRL_SET_TIMEOUT);
+		if(status){
+		    printk("err: set hid remote wakeup failed\n");
+		    return -1;
+		}        
+		
+        /* suspend 
+		status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
+		        USB_REQ_SET_FEATURE, USB_RT_PORT,
+		        USB_PORT_FEAT_SUSPEND, port1,
+		        NULL, 0, 1000);
+		if(status){
+		    printk("err: clear remote wakeup failed\n");
+		    return -1;
+		}*/
+		/* suspend 
+		status = usb_control_msg(hdev->parent, usb_sndctrlpipe(hdev->parent, 0),
+		        USB_REQ_SET_FEATURE, USB_RT_PORT,
+		        USB_PORT_FEAT_SUSPEND, hdev->portnum,
+		        NULL, 0, 1000);
+		if(status){
+		    printk("err: clear remote wakeup failed\n");
+		    return -1;
+		}*/
+		mdelay(1000);
+    }else{
+
+        printk("%s: clear remote wakeup\n", __func__);
+
+    	g_remote_wakeup = 0;
+
+        /* resume 
+        status = usb_control_msg(hdev->parent, usb_sndctrlpipe(hdev->parent, 0),
+		        USB_REQ_CLEAR_FEATURE, USB_RT_PORT,
+		        USB_PORT_FEAT_SUSPEND, hdev->portnum,
+		        NULL, 0, 1000);
+		if(status){
+		    printk("err: resume port failed\n");
+		    return -1;
+		}
+		mdelay(30)*/;
+        /* resume 
+        status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
+                USB_REQ_CLEAR_FEATURE, USB_RT_PORT,
+                USB_PORT_FEAT_SUSPEND, port1,
+                NULL, 0, 1000);
+        if(status){
+            printk("err: resume port failed\n");
+            return -1;
+        }
+        mdelay(30);*/
+
+        /* resume complete 
+		status = usb_control_msg(hdev->parent, usb_rcvctrlpipe(hdev->parent, 0),
+			    USB_REQ_GET_STATUS, USB_DIR_IN | USB_RT_PORT, 0, hdev->portnum,
+			    &data, sizeof(struct usb_port_status), 1000)*/;
+
+        /* resume complete 
+		status = usb_control_msg(hdev, usb_rcvctrlpipe(hdev, 0),
+			    USB_REQ_GET_STATUS, USB_DIR_IN | USB_RT_PORT, 0, port1,
+			    &data, sizeof(struct usb_port_status), 1000);
+		*/	    
+        /* clear remote wakeup */
+        status = usb_control_msg(udev, usb_sndctrlpipe(udev, 0),
+                USB_REQ_CLEAR_FEATURE, USB_RECIP_DEVICE,
+                USB_DEVICE_REMOTE_WAKEUP, 0,
+                NULL, 0,
+                USB_CTRL_SET_TIMEOUT);
+        if(status){
+		    printk("err: clear remote wakeup failed\n");
+		    return -1;
+		}
+		/* clear remote wakeup 
+        status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
+                USB_REQ_CLEAR_FEATURE, USB_RECIP_DEVICE,
+                USB_DEVICE_REMOTE_WAKEUP, 0,
+                NULL, 0,
+                USB_CTRL_SET_TIMEOUT);
+        if(status){
+		    printk("err: suspend port failed\n");
+		    return -1;
+		}*/
+    }
+
+	return 0;
+}
+
+
 #ifdef CONFIG_PM
 static int hid_suspend(struct usb_interface *intf, pm_message_t message)
 {
@@ -1478,6 +1614,10 @@ static int hid_suspend(struct usb_interface *intf, pm_message_t message)
 		usbhid_mark_busy(usbhid);
 		return -EBUSY;
 	}
+	
+    if(usbhid_wakeup_enable)
+	    usbhid_remote_wakeup(interface_to_usbdev(intf), 1);
+
 	dev_dbg(&intf->dev, "suspend\n");
 	return 0;
 }
@@ -1487,6 +1627,10 @@ static int hid_resume(struct usb_interface *intf)
 	struct hid_device *hid = usb_get_intfdata (intf);
 	struct usbhid_device *usbhid = hid->driver_data;
 	int status;
+
+    if(usbhid_wakeup_enable)
+        usbhid_remote_wakeup(interface_to_usbdev(intf), 0);
+
 
 	if (!test_bit(HID_STARTED, &usbhid->iofl))
 		return 0;
@@ -1567,9 +1711,12 @@ static struct hid_driver hid_usb_driver = {
 	.name = "generic-usb",
 	.id_table = hid_usb_table,
 };
-
+extern int sw_usb_disable_suspend(int usbc_no, int enable);
+#include <mach/sys_config.h>
 static int __init hid_init(void)
 {
+    script_item_value_type_e type;
+    script_item_u item;
 	int retval = -ENOMEM;
 
 	retval = hid_register_driver(&hid_usb_driver);
@@ -1581,8 +1728,19 @@ static int __init hid_init(void)
 	retval = usb_register(&hid_driver);
 	if (retval)
 		goto usb_register_fail;
-	printk(KERN_INFO KBUILD_MODNAME ": " DRIVER_DESC "\n");
-
+	printk(KERN_INFO KBUILD_MODNAME ": " DRIVER_DESC "\n");    	    
+    
+	type = script_get_item("pm_para", "usbhid_wakeup_enable", &item);	
+	if(SCIRPT_ITEM_VALUE_TYPE_INT != type)	
+		printk("ERR: script get hid_wakeup_enable failed\n");			
+	else		
+	    usbhid_wakeup_enable = item.val;
+	
+    if(usbhid_wakeup_enable){
+    	sw_usb_disable_suspend(1, 1);
+    	sw_usb_disable_suspend(2, 1);
+    	pm_wakeup_src_enable(SUSPEND_WAKEUP_SRC_USB);
+    }   
 	return 0;
 usb_register_fail:
 	usbhid_quirks_exit();

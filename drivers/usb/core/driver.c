@@ -1252,7 +1252,8 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 		goto done;
 	}
 	udev->can_submit = 1;
-
+	
+    dev_info(&udev->dev, "%s: state(%d) reset_resume(%d)\n", __func__, udev->state, udev->reset_resume);
 	/* Resume the device */
 	if (udev->state == USB_STATE_SUSPENDED || udev->reset_resume)
 		status = usb_resume_device(udev, msg);
@@ -1300,6 +1301,7 @@ static void choose_wakeup(struct usb_device *udev, pm_message_t msg)
 		pm_runtime_resume(&udev->dev);
 	udev->do_remote_wakeup = w;
 }
+
 
 /* The device lock is held by the PM core */
 int usb_suspend(struct device *dev, pm_message_t msg)

@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2012, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_common.c 392661 2013-03-22 23:17:02Z $
+ * $Id: dhd_common.c 373873 2012-12-10 20:45:58Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -33,7 +33,6 @@
 #include <dngl_stats.h>
 #include <wlioctl.h>
 #include <dhd.h>
-#include <dhd_ip.h>
 
 #include <proto/bcmevent.h>
 
@@ -44,6 +43,10 @@
 
 #ifdef WL_CFG80211
 #include <wl_cfg80211.h>
+#endif
+#ifdef WLBTAMP
+#include <proto/bt_amp_hci.h>
+#include <dhd_bta.h>
 #endif
 #ifdef SET_RANDOM_MAC_SOFTAP
 #include <linux/random.h>
@@ -61,6 +64,8 @@
 #include <wlfc_proto.h>
 #include <dhd_wlfc.h>
 #endif
+
+extern int wifi_pm_get_mod_type(void);
 
 #ifdef WLMEDIA_HTSF
 extern void htsf_update(struct dhd_info *dhd, void *data);
@@ -108,6 +113,7 @@ void dhd_set_timer(void *bus, uint wdtick);
 /* IOVar table */
 enum {
 	IOV_VERSION = 1,
+	IOV_WLMSGLEVEL,
 	IOV_MSGLEVEL,
 	IOV_BCMERRORSTR,
 	IOV_BCMERROR,
@@ -119,6 +125,10 @@ enum {
 	IOV_LOGSTAMP,
 	IOV_GPIOOB,
 	IOV_IOCTLTIMEOUT,
+#ifdef WLBTAMP
+	IOV_HCI_CMD,		/* HCI command */
+	IOV_HCI_ACL_DATA,	/* HCI data packet */
+#endif
 #if defined(DHD_DEBUG)
 	IOV_CONS,
 	IOV_DCONSOLE_POLL,
@@ -126,7 +136,6 @@ enum {
 #ifdef PROP_TXSTATUS
 	IOV_PROPTXSTATUS_ENABLE,
 	IOV_PROPTXSTATUS_MODE,
-	IOV_PROPTXSTATUS_OPT,
 #endif
 	IOV_BUS_TYPE,
 #ifdef WLMEDIA_HTSF
@@ -139,6 +148,7 @@ enum {
 
 const bcm_iovar_t dhd_iovars[] = {
 	{"version", 	IOV_VERSION,	0,	IOVT_BUFFER,	sizeof(dhd_version) },
+	{"wlmsglevel",	IOV_WLMSGLEVEL,	0,	IOVT_UINT32,	0 },
 #ifdef DHD_DEBUG
 	{"msglevel",	IOV_MSGLEVEL,	0,	IOVT_UINT32,	0 },
 #endif /* DHD_DEBUG */
@@ -153,6 +163,10 @@ const bcm_iovar_t dhd_iovars[] = {
 	{"clearcounts", IOV_CLEARCOUNTS, 0, IOVT_VOID,	0 },
 	{"gpioob",	IOV_GPIOOB,	0,	IOVT_UINT32,	0 },
 	{"ioctl_timeout",	IOV_IOCTLTIMEOUT,	0,	IOVT_UINT32,	0 },
+#ifdef WLBTAMP
+	{"HCI_cmd",	IOV_HCI_CMD,	0,	IOVT_BUFFER,	0},
+	{"HCI_ACL_data", IOV_HCI_ACL_DATA, 0,	IOVT_BUFFER,	0},
+#endif
 #ifdef PROP_TXSTATUS
 	{"proptx",	IOV_PROPTXSTATUS_ENABLE,	0,	IOVT_UINT32,	0 },
 	/*
@@ -162,7 +176,6 @@ const bcm_iovar_t dhd_iovars[] = {
 	2 - Use explicit credit
 	*/
 	{"ptxmode",	IOV_PROPTXSTATUS_MODE,	0,	IOVT_UINT32,	0 },
-	{"proptx_opt", IOV_PROPTXSTATUS_OPT, 	0,	IOVT_UINT32,	0 },
 #endif
 	{"bustype", IOV_BUS_TYPE, 0, IOVT_UINT32, 0},
 #ifdef WLMEDIA_HTSF
@@ -177,41 +190,55 @@ const bcm_iovar_t dhd_iovars[] = {
 void
 dhd_common_init(osl_t *osh)
 {
+	int select_type = 0;
+	//aw checkout which wifi had select
+	select_type = wifi_pm_get_mod_type();
+	
 #ifdef CONFIG_BCMDHD_FW_PATH
-	bcm_strncpy_s(fw_path, sizeof(fw_path), CONFIG_BCMDHD_FW_PATH, MOD_PARAM_PATHLEN-1);
+	//select bcm40181/ap6181/ap6210
+	if (select_type == 1 || select_type == 7 || select_type == 9) {
+		bcm_strncpy_s(fw_path, sizeof(fw_path), "/system/vendor/modules/fw_bcm40181a2.bin", MOD_PARAM_PATHLEN-1);
+	}
+	//select bcm40183
+	if (select_type == 2) {
+		bcm_strncpy_s(fw_path, sizeof(fw_path), "/system/vendor/modules/fw_bcm40183b2.bin", MOD_PARAM_PATHLEN-1);
+	}
+	//select ap6330
+	if (select_type == 8) {
+		bcm_strncpy_s(fw_path, sizeof(fw_path), "/system/vendor/modules/fw_bcm40183b2_ag.bin", MOD_PARAM_PATHLEN-1);
+	}
+	
 #else /* CONFIG_BCMDHD_FW_PATH */
 	fw_path[0] = '\0';
 #endif /* CONFIG_BCMDHD_FW_PATH */
 #ifdef CONFIG_BCMDHD_NVRAM_PATH
-	bcm_strncpy_s(nv_path, sizeof(nv_path), CONFIG_BCMDHD_NVRAM_PATH, MOD_PARAM_PATHLEN-1);
+    //select bcm40181
+	if (select_type == 1) {
+		bcm_strncpy_s(nv_path, sizeof(nv_path), "/system/vendor/modules/nvram_bcm40181.txt", MOD_PARAM_PATHLEN-1);
+	}
+	//select bcm40183
+	if (select_type == 2) {
+		bcm_strncpy_s(nv_path, sizeof(nv_path), "/system/vendor/modules/nvram_bcm40183.txt", MOD_PARAM_PATHLEN-1);
+	}
+	//select ap6210
+	if (select_type == 7) {
+		bcm_strncpy_s(nv_path, sizeof(nv_path), "/system/vendor/modules/nvram_ap6210.txt", MOD_PARAM_PATHLEN-1);
+	}
+	
+	//select ap6330
+	if (select_type == 8) {
+		bcm_strncpy_s(nv_path, sizeof(nv_path), "/system/vendor/modules/nvram_ap6330.txt", MOD_PARAM_PATHLEN-1);
+	}
+	//select ap6181
+	if (select_type == 9) {
+		bcm_strncpy_s(nv_path, sizeof(nv_path), "/system/vendor/modules/nvram_ap6181.txt", MOD_PARAM_PATHLEN-1);
+	}
 #else /* CONFIG_BCMDHD_NVRAM_PATH */
 	nv_path[0] = '\0';
 #endif /* CONFIG_BCMDHD_NVRAM_PATH */
 #ifdef SOFTAP
 	fw_path2[0] = '\0';
 #endif
-}
-
-void
-dhd_common_deinit(dhd_pub_t *dhd_pub, dhd_cmn_t *sa_cmn)
-{
-	osl_t *osh;
-	dhd_cmn_t *cmn;
-
-	if (dhd_pub != NULL)
-		cmn = dhd_pub->cmn;
-	else
-		cmn = sa_cmn;
-
-	if (!cmn)
-		return;
-
-	osh = cmn->osh;
-
-	if (dhd_pub != NULL)
-		dhd_pub->cmn = NULL;
-
-	MFREE(osh, cmn, sizeof(dhd_cmn_t));
 }
 
 static int
@@ -229,31 +256,31 @@ dhd_dump(dhd_pub_t *dhdp, char *buf, int buflen)
 	bcm_bprintf(strbuf, "\n");
 	bcm_bprintf(strbuf, "pub.up %d pub.txoff %d pub.busstate %d\n",
 	            dhdp->up, dhdp->txoff, dhdp->busstate);
-	bcm_bprintf(strbuf, "pub.hdrlen %u pub.maxctl %u pub.rxsz %u\n",
+	bcm_bprintf(strbuf, "pub.hdrlen %d pub.maxctl %d pub.rxsz %d\n",
 	            dhdp->hdrlen, dhdp->maxctl, dhdp->rxsz);
 	bcm_bprintf(strbuf, "pub.iswl %d pub.drv_version %ld pub.mac %s\n",
 	            dhdp->iswl, dhdp->drv_version, bcm_ether_ntoa(&dhdp->mac, eabuf));
-	bcm_bprintf(strbuf, "pub.bcmerror %d tickcnt %u\n", dhdp->bcmerror, dhdp->tickcnt);
+	bcm_bprintf(strbuf, "pub.bcmerror %d tickcnt %d\n", dhdp->bcmerror, dhdp->tickcnt);
 
 	bcm_bprintf(strbuf, "dongle stats:\n");
-	bcm_bprintf(strbuf, "tx_packets %lu tx_bytes %lu tx_errors %lu tx_dropped %lu\n",
+	bcm_bprintf(strbuf, "tx_packets %ld tx_bytes %ld tx_errors %ld tx_dropped %ld\n",
 	            dhdp->dstats.tx_packets, dhdp->dstats.tx_bytes,
 	            dhdp->dstats.tx_errors, dhdp->dstats.tx_dropped);
-	bcm_bprintf(strbuf, "rx_packets %lu rx_bytes %lu rx_errors %lu rx_dropped %lu\n",
+	bcm_bprintf(strbuf, "rx_packets %ld rx_bytes %ld rx_errors %ld rx_dropped %ld\n",
 	            dhdp->dstats.rx_packets, dhdp->dstats.rx_bytes,
 	            dhdp->dstats.rx_errors, dhdp->dstats.rx_dropped);
-	bcm_bprintf(strbuf, "multicast %lu\n", dhdp->dstats.multicast);
+	bcm_bprintf(strbuf, "multicast %ld\n", dhdp->dstats.multicast);
 
 	bcm_bprintf(strbuf, "bus stats:\n");
-	bcm_bprintf(strbuf, "tx_packets %lu tx_multicast %lu tx_errors %lu\n",
+	bcm_bprintf(strbuf, "tx_packets %ld tx_multicast %ld tx_errors %ld\n",
 	            dhdp->tx_packets, dhdp->tx_multicast, dhdp->tx_errors);
-	bcm_bprintf(strbuf, "tx_ctlpkts %lu tx_ctlerrs %lu\n",
+	bcm_bprintf(strbuf, "tx_ctlpkts %ld tx_ctlerrs %ld\n",
 	            dhdp->tx_ctlpkts, dhdp->tx_ctlerrs);
-	bcm_bprintf(strbuf, "rx_packets %lu rx_multicast %lu rx_errors %lu \n",
+	bcm_bprintf(strbuf, "rx_packets %ld rx_multicast %ld rx_errors %ld \n",
 	            dhdp->rx_packets, dhdp->rx_multicast, dhdp->rx_errors);
-	bcm_bprintf(strbuf, "rx_ctlpkts %lu rx_ctlerrs %lu rx_dropped %lu\n",
+	bcm_bprintf(strbuf, "rx_ctlpkts %ld rx_ctlerrs %ld rx_dropped %ld\n",
 	            dhdp->rx_ctlpkts, dhdp->rx_ctlerrs, dhdp->rx_dropped);
-	bcm_bprintf(strbuf, "rx_readahead_cnt %lu tx_realloc %lu\n",
+	bcm_bprintf(strbuf, "rx_readahead_cnt %ld tx_realloc %ld\n",
 	            dhdp->rx_readahead_cnt, dhdp->tx_realloc);
 	bcm_bprintf(strbuf, "\n");
 
@@ -284,20 +311,17 @@ dhd_wl_ioctl_cmd(dhd_pub_t *dhd_pub, int cmd, void *arg, int len, uint8 set, int
 int
 dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int len)
 {
-	int ret = 0;
+	int ret;
 
-	if (dhd_os_proto_block(dhd_pub))
-	{
+	dhd_os_proto_block(dhd_pub);
 
-		ret = dhd_prot_ioctl(dhd_pub, ifindex, ioc, buf, len);
-		if ((ret) && (dhd_pub->up))
-			/* Send hang event only if dhd_open() was success */
-			dhd_os_check_hang(dhd_pub, ifindex, ret);
+	ret = dhd_prot_ioctl(dhd_pub, ifindex, ioc, buf, len);
+	if ((ret) && (dhd_pub->up))
+		/* Send hang event only if dhd_open() was success */
+		dhd_os_check_hang(dhd_pub, ifindex, ret);
 
-		dhd_os_proto_unblock(dhd_pub);
+	dhd_os_proto_unblock(dhd_pub);
 
-
-	}
 	return ret;
 }
 
@@ -323,22 +347,47 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcm_strncpy_s((char*)arg, len, dhd_version, len);
 		break;
 
+	case IOV_GVAL(IOV_WLMSGLEVEL):
+		printk("android_msg_level=0x%x\n", android_msg_level);
+#if defined(CONFIG_WIRELESS_EXT)
+		int_val = (int32)iw_msg_level;
+		bcopy(&int_val, arg, val_size);
+		printk("iw_msg_level=0x%x\n", iw_msg_level);
+#endif
+#ifdef WL_CFG80211
+		int_val = (int32)wl_dbg_level;
+		bcopy(&int_val, arg, val_size);
+		printk("cfg_msg_level=0x%x\n", wl_dbg_level);
+#endif
+		break;
+
+	case IOV_SVAL(IOV_WLMSGLEVEL):
+#if defined(CONFIG_WIRELESS_EXT)
+		if (int_val & DHD_IW_VAL) {
+			iw_msg_level = (uint)(int_val & 0xFFFF);
+			printk("iw_msg_level=0x%x\n", iw_msg_level);
+		} else
+#endif
+#ifdef WL_CFG80211
+		if (int_val & DHD_CFG_VAL) {
+			wl_cfg80211_enable_trace((u32)(int_val & 0xFFFF));
+		} else
+#endif
+		{
+			android_msg_level = (uint)int_val;
+			printk("android_msg_level=0x%x\n", android_msg_level);
+		}
+		break;
+
 	case IOV_GVAL(IOV_MSGLEVEL):
 		int_val = (int32)dhd_msg_level;
 		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_MSGLEVEL):
-#ifdef WL_CFG80211
-		/* Enable DHD and WL logs in oneshot */
-		if (int_val & DHD_WL_VAL2)
-			wl_cfg80211_enable_trace(TRUE, int_val & (~DHD_WL_VAL2));
-		else if (int_val & DHD_WL_VAL)
-			wl_cfg80211_enable_trace(FALSE, WL_DBG_DBG);
-		if (!(int_val & DHD_WL_VAL2))
-#endif /* WL_CFG80211 */
 		dhd_msg_level = int_val;
 		break;
+
 	case IOV_GVAL(IOV_BCMERRORSTR):
 		bcm_strncpy_s((char *)arg, len, bcmerrorstr(dhd_pub->bcmerror), BCME_STRLEN);
 		((char *)arg)[BCME_STRLEN - 1] = 0x00;
@@ -427,6 +476,37 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		break;
 	}
 
+#ifdef WLBTAMP
+	case IOV_SVAL(IOV_HCI_CMD): {
+		amp_hci_cmd_t *cmd = (amp_hci_cmd_t *)arg;
+
+		/* sanity check: command preamble present */
+		if (len < HCI_CMD_PREAMBLE_SIZE)
+			return BCME_BUFTOOSHORT;
+
+		/* sanity check: command parameters are present */
+		if (len < (int)(HCI_CMD_PREAMBLE_SIZE + cmd->plen))
+			return BCME_BUFTOOSHORT;
+
+		dhd_bta_docmd(dhd_pub, cmd, len);
+		break;
+	}
+
+	case IOV_SVAL(IOV_HCI_ACL_DATA): {
+		amp_hci_ACL_data_t *ACL_data = (amp_hci_ACL_data_t *)arg;
+
+		/* sanity check: HCI header present */
+		if (len < HCI_ACL_DATA_PREAMBLE_SIZE)
+			return BCME_BUFTOOSHORT;
+
+		/* sanity check: ACL data is present */
+		if (len < (int)(HCI_ACL_DATA_PREAMBLE_SIZE + ACL_data->dlen))
+			return BCME_BUFTOOSHORT;
+
+		dhd_bta_tx_hcidata(dhd_pub, ACL_data, len);
+		break;
+	}
+#endif /* WLBTAMP */
 
 #ifdef PROP_TXSTATUS
 	case IOV_GVAL(IOV_PROPTXSTATUS_ENABLE):
@@ -545,8 +625,7 @@ dhd_prec_enq(dhd_pub_t *dhdp, struct pktq *q, void *pkt, int prec)
 	if (pktq_pfull(q, prec))
 		eprec = prec;
 	else if (pktq_full(q)) {
-		p = pktq_peek_tail(q, &eprec);
-		ASSERT(p);
+		pktq_peek_tail(q, &eprec);
 		if (eprec > prec || eprec < 0)
 			return FALSE;
 	}
@@ -566,91 +645,7 @@ dhd_prec_enq(dhd_pub_t *dhdp, struct pktq *q, void *pkt, int prec)
 	}
 
 	/* Enqueue */
-	p = pktq_penq(q, prec, pkt);
-	ASSERT(p);
-
-	return TRUE;
-}
-
-/*
- * Functions to drop proper pkts from queue:
- *	If one pkt in queue is non-fragmented, drop first non-fragmented pkt only
- *	If all pkts in queue are all fragmented, find and drop one whole set fragmented pkts
- *	If can't find pkts matching upper 2 cases, drop first pkt anyway
- */
-bool
-dhd_prec_drop_pkts(osl_t *osh, struct pktq *pq, int prec)
-{
-	struct pktq_prec *q = NULL;
-	void *p, *prev = NULL, *next = NULL, *first = NULL, *last = NULL, *prev_first = NULL;
-	pkt_frag_t frag_info;
-
-	ASSERT(osh && pq);
-	ASSERT(prec >= 0 && prec < pq->num_prec);
-
-	q = &pq->q[prec];
-	p = q->head;
-
-	if (p == NULL)
-		return FALSE;
-
-	while (p) {
-		frag_info = pkt_frag_info(osh, p);
-		if (frag_info == DHD_PKT_FRAG_NONE) {
-			break;
-		} else if (frag_info == DHD_PKT_FRAG_FIRST) {
-			if (first) {
-				/* No last frag pkt, use prev as last */
-				last = prev;
-			} else {
-				first = p;
-				prev_first = prev;
-			}
-		} else if (frag_info == DHD_PKT_FRAG_LAST) {
-			if (first) {
-				last = p;
-				break;
-			}
-		}
-
-		prev = p;
-		p = PKTLINK(p);
-	}
-
-	if ((p == NULL) || ((frag_info != DHD_PKT_FRAG_NONE) && !(first && last))) {
-		/* Not found matching pkts, use oldest */
-		prev = NULL;
-		p = q->head;
-		frag_info = 0;
-	}
-
-	if (frag_info == DHD_PKT_FRAG_NONE) {
-		first = last = p;
-		prev_first = prev;
-	}
-
-	p = first;
-	while (p) {
-		next = PKTLINK(p);
-		q->len--;
-		pq->len--;
-
-		PKTSETLINK(p, NULL);
-
-		PKTFREE(osh, p, TRUE);
-
-		if (p == last)
-			break;
-
-		p = next;
-	}
-
-	if (prev_first == NULL) {
-		if ((q->head = next) == NULL)
-			q->tail = NULL;
-	} else {
-		PKTSETLINK(prev_first, next);
-	}
+	pktq_penq(q, prec, pkt);
 
 	return TRUE;
 }
@@ -728,7 +723,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 
 	case DHD_GET_VERSION:
 		if (buflen < sizeof(int))
-			bcmerror = BCME_BUFTOOSHORT;
+			bcmerror = -BCME_BUFTOOSHORT;
 		else
 			*(int*)buf = DHD_IOCTL_VERSION;
 		break;
@@ -965,7 +960,6 @@ wl_show_host_event(wl_event_msg_t *event, void *event_data)
 
 	case WLC_E_TRACE: {
 		static uint32 seqnum_prev = 0;
-		static uint32 logtrace_seqnum_prev = 0;
 		msgtrace_hdr_t hdr;
 		uint32 nblost;
 		char *s, *p;
@@ -982,72 +976,35 @@ wl_show_host_event(wl_event_msg_t *event, void *event_data)
 			break;
 		}
 
-		if (hdr.trace_type == MSGTRACE_HDR_TYPE_MSG) {
-			/* There are 2 bytes available at the end of data */
-			buf[MSGTRACE_HDRLEN + ntoh16(hdr.len)] = '\0';
+		/* There are 2 bytes available at the end of data */
+		buf[MSGTRACE_HDRLEN + ntoh16(hdr.len)] = '\0';
 
-			if (ntoh32(hdr.discarded_bytes) || ntoh32(hdr.discarded_printf)) {
-				printf("\nWLC_E_TRACE: [Discarded traces in dongle -->"
-				       "discarded_bytes %d discarded_printf %d]\n",
-				       ntoh32(hdr.discarded_bytes), ntoh32(hdr.discarded_printf));
-			}
-
-			nblost = ntoh32(hdr.seqnum) - seqnum_prev - 1;
-			if (nblost > 0) {
-				printf("\nWLC_E_TRACE: [Event lost (msg) --> seqnum %d nblost %d\n",
-				       ntoh32(hdr.seqnum), nblost);
-			}
-			seqnum_prev = ntoh32(hdr.seqnum);
-
-			/* Display the trace buffer. Advance from \n to \n to avoid display big
-			 * printf (issue with Linux printk )
-			 */
-			p = (char *)&buf[MSGTRACE_HDRLEN];
-		while (*p != '\0' && (s = strstr(p, "\n")) != NULL) {
-				*s = '\0';
-				printf("%s\n", p);
-				p = s+1;
-			}
-			if (*p) printf("%s", p);
-
-			/* Reset datalen to avoid display below */
-			datalen = 0;
-
-		} else if (hdr.trace_type == MSGTRACE_HDR_TYPE_LOG) {
-			/* Let the standard event printing work for now */
-			uint32 timestamp, w;
-			if (ntoh32(hdr.seqnum) == logtrace_seqnum_prev) {
-				printf("\nWLC_E_TRACE: [Event duplicate (log) %d",
-				       logtrace_seqnum_prev);
-			} else {
-				nblost = ntoh32(hdr.seqnum) - logtrace_seqnum_prev - 1;
-				if (nblost > 0) {
-					printf("\nWLC_E_TRACE: [Event lost (log)"
-					       " --> seqnum %d nblost %d\n",
-					       ntoh32(hdr.seqnum), nblost);
-				}
-				logtrace_seqnum_prev = ntoh32(hdr.seqnum);
-
-				p = (char *)&buf[MSGTRACE_HDRLEN];
-				datalen -= MSGTRACE_HDRLEN;
-				w = ntoh32((uint32) *p);
-				p += 4;
-				datalen -= 4;
-				timestamp = ntoh32((uint32) *p);
-				printf("Logtrace %x timestamp %x %x",
-				       logtrace_seqnum_prev, timestamp, w);
-
-				while (datalen > 4) {
-					p += 4;
-					datalen -= 4;
-					/* Print each word.  DO NOT ntoh it.  */
-					printf(" %8.8x", *((uint32 *) p));
-				}
-				printf("\n");
-			}
-			datalen = 0;
+		if (ntoh32(hdr.discarded_bytes) || ntoh32(hdr.discarded_printf)) {
+			printf("\nWLC_E_TRACE: [Discarded traces in dongle -->"
+			       "discarded_bytes %d discarded_printf %d]\n",
+			       ntoh32(hdr.discarded_bytes), ntoh32(hdr.discarded_printf));
 		}
 
+		nblost = ntoh32(hdr.seqnum) - seqnum_prev - 1;
+		if (nblost > 0) {
+			printf("\nWLC_E_TRACE: [Event lost --> seqnum %d nblost %d\n",
+			       ntoh32(hdr.seqnum), nblost);
+		}
+		seqnum_prev = ntoh32(hdr.seqnum);
+
+		/* Display the trace buffer. Advance from \n to \n to avoid display big
+		 * printf (issue with Linux printk )
+		 */
+		p = (char *)&buf[MSGTRACE_HDRLEN];
+		while ((s = strstr(p, "\n")) != NULL) {
+			*s = '\0';
+			printf("%s\n", p);
+			p = s+1;
+		}
+		printf("%s\n", p);
+
+		/* Reset datalen to avoid display below */
+		datalen = 0;
 		break;
 	}
 
@@ -1059,7 +1016,7 @@ wl_show_host_event(wl_event_msg_t *event, void *event_data)
 	case WLC_E_SERVICE_FOUND:
 	case WLC_E_P2PO_ADD_DEVICE:
 	case WLC_E_P2PO_DEL_DEVICE:
-		DHD_EVENT(("MACEVENT: %s, MAC %s\n", event_name, eabuf));
+		DHD_EVENT(("MACEVENT: %s, MAC: %s\n", event_name, eabuf));
 		break;
 
 	default:
@@ -1117,10 +1074,8 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 	switch (type) {
 #ifdef PROP_TXSTATUS
 	case WLC_E_FIFO_CREDIT_MAP:
-		dhd_os_wlfc_block(dhd_pub);
 		dhd_wlfc_event(dhd_pub->info);
 		dhd_wlfc_FIFOcreditmap_event(dhd_pub->info, event_data);
-		dhd_os_wlfc_unblock(dhd_pub);
 		WLFC_DBGMESG(("WLC_E_FIFO_CREDIT_MAP:(AC0,AC1,AC2,AC3),(BC_MC),(OTHER): "
 			"(%d,%d,%d,%d),(%d),(%d)\n", event_data[0], event_data[1],
 			event_data[2],
@@ -1131,13 +1086,6 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 	case WLC_E_IF:
 		{
 		dhd_if_event_t *ifevent = (dhd_if_event_t *)event_data;
-
-		/* Ignore the event if NOIF is set */
-		if (ifevent->flags & WLC_E_IF_FLAGS_BSSCFG_NOIF) {
-			WLFC_DBGMESG(("WLC_E_IF: NO_IF set, event Ignored\r\n"));
-			return (BCME_OK);
-		}
-
 #ifdef PROP_TXSTATUS
 			{
 		uint8* ea = pvt_data->eth.ether_dhost;
@@ -1148,8 +1096,6 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 		              ((ifevent->is_AP == 0) ? "STA":"AP "),
 		              ea[0], ea[1], ea[2], ea[3], ea[4], ea[5]));
 		(void)ea;
-
-		dhd_os_wlfc_block(dhd_pub);
 		if (ifevent->action == WLC_E_IF_CHANGE)
 			dhd_wlfc_interface_event(dhd_pub->info,
 				eWLFC_MAC_ENTRY_ACTION_UPDATE,
@@ -1159,7 +1105,7 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 				((ifevent->action == WLC_E_IF_ADD) ?
 				eWLFC_MAC_ENTRY_ACTION_ADD : eWLFC_MAC_ENTRY_ACTION_DEL),
 				ifevent->ifidx, ifevent->is_AP, ea);
-		dhd_os_wlfc_unblock(dhd_pub);
+
 
 		/* dhd already has created an interface by default, for 0 */
 		if (ifevent->ifidx == 0)
@@ -1213,12 +1159,17 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 		htsf_update(dhd_pub->info, event_data);
 		break;
 #endif /* WLMEDIA_HTSF */
+#if defined(NDIS630)
+	case WLC_E_NDIS_LINK:
+		break;
+#else /* defined(NDIS630) && defined(BCMDONGLEHOST) */
 	case WLC_E_NDIS_LINK: {
 		uint32 temp = hton32(WLC_E_LINK);
 
 		memcpy((void *)(&pvt_data->event.event_type), &temp,
 		       sizeof(pvt_data->event.event_type));
 	}
+#endif 
 		/* These are what external supplicant/authenticator wants */
 		/* fall through */
 	case WLC_E_LINK:
@@ -1606,7 +1557,7 @@ dhd_aoe_arp_clr(dhd_pub_t *dhd, int idx)
 		idx = 0;
 
 	iov_len = bcm_mkiovar("arp_table_clear", 0, 0, iovbuf, sizeof(iovbuf));
-	if ((ret  = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, iov_len, TRUE, idx)) < 0)
+	if ((ret  = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, iov_len, TRUE, idx) < 0))
 		DHD_ERROR(("%s failed code %d\n", __FUNCTION__, ret));
 }
 
@@ -1694,6 +1645,10 @@ void
 dhd_sendup_event_common(dhd_pub_t *dhdp, wl_event_msg_t *event, void *data)
 {
 	switch (ntoh32(event->event_type)) {
+#ifdef WLBTAMP
+	case WLC_E_BTA_HCI_EVENT:
+		break;
+#endif /* WLBTAMP */
 	default:
 		break;
 	}
@@ -1746,10 +1701,11 @@ bool dhd_is_associated(dhd_pub_t *dhd, void *bss_buf, int *retval)
 int
 dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 {
-	int bcn_li_dtim = 1; /* deafult no dtim skip setting */
+	int bcn_li_dtim;
 	int ret = -1;
 	int dtim_assoc = 0;
-	int ap_beacon = 0;
+
+	bcn_li_dtim = dhd->suspend_bcn_li_dtim;
 
 	/* Check if associated */
 	if (dhd_is_associated(dhd, NULL, NULL) == FALSE) {
@@ -1757,33 +1713,20 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		goto exit;
 	}
 
-	/* read associated AP beacon interval */
-	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_BCNPRD,
-		&ap_beacon, sizeof(ap_beacon), FALSE, 0)) < 0) {
-		DHD_ERROR(("%s get beacon failed code %d\n", __FUNCTION__, ret));
-		goto exit;
-	}
-
-	/* if associated APs Beacon more  that 100msec do no dtim skip */
-	if (ap_beacon > MAX_DTIM_SKIP_BEACON_ITERVAL) {
-		DHD_ERROR(("%s NO dtim skip for AP with beacon %d ms\n", __FUNCTION__, ap_beacon));
-		goto exit;
-	}
-
-	/* read associated ap's dtim setup */
+	/* if assoc grab ap's dtim value */
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_DTIMPRD,
 		&dtim_assoc, sizeof(dtim_assoc), FALSE, 0)) < 0) {
 		DHD_ERROR(("%s failed code %d\n", __FUNCTION__, ret));
 		goto exit;
 	}
 
+	DHD_ERROR(("%s bcn_li_dtim=%d DTIM=%d Listen=%d\n",
+		__FUNCTION__, bcn_li_dtim, dtim_assoc, LISTEN_INTERVAL));
+
 	/* if not assocated just eixt */
 	if (dtim_assoc == 0) {
 		goto exit;
 	}
-
-	/* attemp to use platform defined dtim skip interval */
-	bcn_li_dtim = dhd->suspend_bcn_li_dtim;
 
 	/* check if sta listen interval fits into AP dtim */
 	if (dtim_assoc > LISTEN_INTERVAL) {
@@ -1800,9 +1743,6 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		DHD_TRACE(("%s agjust dtim_skip as %d\n", __FUNCTION__, bcn_li_dtim));
 	}
 
-	DHD_ERROR(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
-		__FUNCTION__, ap_beacon, bcn_li_dtim, dtim_assoc, LISTEN_INTERVAL));
-
 exit:
 	return bcn_li_dtim;
 }
@@ -1818,7 +1758,6 @@ bool dhd_support_sta_mode(dhd_pub_t *dhd)
 #endif /* WL_CFG80211 */
 		return TRUE;
 }
-
 
 #if defined(PNO_SUPPORT)
 int
@@ -2026,7 +1965,7 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 {
 	char 				buf[256];
 	const char 			*str;
-	wl_mkeep_alive_pkt_t	mkeep_alive_pkt = {0};
+	wl_mkeep_alive_pkt_t	mkeep_alive_pkt;
 	wl_mkeep_alive_pkt_t	*mkeep_alive_pktp;
 	int					buf_len;
 	int					str_len;

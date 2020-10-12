@@ -638,3 +638,50 @@ config USB_OCTEON_OHCI
 config USB_OCTEON2_COMMON
 	bool
 	default y if USB_OCTEON_EHCI || USB_OCTEON_OHCI
+#-----------------------------------------------------
+#
+# USB Host Controller Drivers
+#
+#-----------------------------------------------------
+config USB_SW_SUN7I_HCD
+    tristate "SoftWinner SUN7I USB Host Controller support"
+#	depends on USB && USB_SW_SUN7I_USB_MANAGER
+	depends on USB 
+	help
+	    SoftWinner SUN7I USB2.0 Host Controller support.
+
+config USB_SW_SUN7I_HCD0
+	tristate "SoftWinner SUN7I USB Host Controller0"
+	depends on USB_SW_SUN7I_HCD && (USB_SW_SUN7I_USB0_HOST_ONLY || USB_SW_SUN7I_USB0_OTG)
+	help
+	    SoftWinner SUN7I USB2.0 Host Controller0.
+
+config USB_SW_SUN7I_HCI
+    tristate "SoftWinner SUN7I USB HCI"
+	depends on USB_SW_SUN7I_HCD
+	help
+	    SoftWinner SUN7I USB HCI.
+
+config USB_SW_SUN7I_EHCI0
+    tristate "SoftWinner SUN7I USB EHCI0"
+	depends on USB_SW_SUN7I_HCI
+	help
+	    SoftWinner SUN7I USB EHCI0.
+
+config USB_SW_SUN7I_EHCI1
+    tristate "SoftWinner SUN7I USB EHCI1"
+	depends on USB_SW_SUN7I_HCI
+	help
+	    SoftWinner SUN7I USB EHCI1.
+
+config USB_SW_SUN7I_OHCI0
+    tristate "SoftWinner SUN7I USB OHCI0"
+	depends on USB_SW_SUN7I_HCI
+	help
+	    SoftWinner SUN7I USB OHCI0.
+
+config USB_SW_SUN7I_OHCI1
+    tristate "SoftWinner SUN7I USB OHCI1"
+	depends on USB_SW_SUN7I_HCI
+	help
+	    SoftWinner SUN7I USB OHCI1.

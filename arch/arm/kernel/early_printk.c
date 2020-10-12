@@ -11,15 +11,31 @@
 #include <linux/kernel.h>
 #include <linux/console.h>
 #include <linux/init.h>
+#include <mach/platform.h>
+#include <mach/uart.h>
+#include <asm/io.h>
+
+#define aw_readb(addr)		(*((volatile unsigned char  *)(addr)))
+#define aw_readw(addr)		(*((volatile unsigned short *)(addr)))
+#define aw_readl(addr)		(*((volatile unsigned long  *)(addr)))
+#define aw_writeb(v, addr)	(*((volatile unsigned char  *)(addr)) = (unsigned char)(v))
+#define aw_writew(v, addr)	(*((volatile unsigned short *)(addr)) = (unsigned short)(v))
+#define aw_writel(v, addr)	(*((volatile unsigned long  *)(addr)) = (unsigned long)(v))
 
 extern void printch(int);
 
+void aw_putc(char c)
+{
+	while(!(aw_readb(SW_VA_UART0_IO_BASE + AW_UART_USR) & 2));
+		aw_writeb(c, SW_VA_UART0_IO_BASE + AW_UART_THR);
+}
+
 static void early_write(const char *s, unsigned n)
 {
-	while (n-- > 0) {
-		if (*s == '\n')
+	while(n-- > 0) {
+		if(*s == '\n')
 			printch('\r');
-		printch(*s);
+		aw_putc(*s);
 		s++;
 	}
 }

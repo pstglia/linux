@@ -337,10 +337,19 @@ static int snd_pcm_update_hw_ptr0(struct snd_pcm_substream *substream,
 		xrun_log(substream, pos, in_interrupt);
 	hw_base = runtime->hw_ptr_base;
 	new_hw_ptr = hw_base + pos;
+
+//	printk("n:%x,h_ptr:%x,a_ptr:%x,(a-h):%x\n",new_hw_ptr, runtime->status->hw_ptr ,  runtime->control->appl_ptr,  (runtime->control->appl_ptr - runtime->status->hw_ptr));
 	if (in_interrupt) {
 		/* we know that one period was processed */
 		/* delta = "expected next hw_ptr" for in_interrupt != 0 */
-		delta = runtime->hw_ptr_interrupt + runtime->period_size;
+		if ((!strcmp(substream->pcm->card->id, "sndspdifraw"))||(!strcmp(substream->pcm->card->id, "sndhdmiraw"))||(!strcmp(substream->pcm->card->id, "audiocodec_half"))) {
+			/*spdif use half buffer interrupt in A20 platform*/
+			delta = runtime->hw_ptr_interrupt + runtime->period_size/2;
+			//printk("spdif\n");
+		} else {
+			delta = runtime->hw_ptr_interrupt + runtime->period_size;
+			//printk("OTHER SOUND CARD\n");
+		}
 		if (delta > new_hw_ptr) {
 			/* check for double acknowledged interrupts */
 			hdelta = jiffies - runtime->hw_ptr_jiffies;
@@ -1898,7 +1907,7 @@ static snd_pcm_sframes_t snd_pcm_lib_write1(struct snd_pcm_substream *substream,
 
 	if (size == 0)
 		return 0;
-
+//printk("%s, line:%d, runtime->sample_bits:%d,size:%d\n", __func__, __LINE__, runtime->sample_bits, size);
 	snd_pcm_stream_lock_irq(substream);
 	switch (runtime->status->state) {
 	case SNDRV_PCM_STATE_PREPARED:

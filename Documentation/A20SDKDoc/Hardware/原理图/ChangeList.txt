@@ -1,0 +1,150 @@
+
+                                ChangeList
+
+===============================================================================================
+*                                                                                            *
+*                       A20_HOMLET_STD_ChangeList                                            *
+*                                                                                            *
+===========================2014-06-3==========================================================
+1，修改主控ZQ电阻192欧改为240欧
+
+2，主控配PH口接地
+
+3，删除DDR多余的bypass电容
+
+4，PMU209改为152，删除了SY8008供DRAM-VCC和VCC-3V3两路DCDC，MCU改为rtc-3V1供电，删除SATA部分的ldo，转pmu直接供电，
+
+5，usbhost转为1路供电。
+
+6，NAND添加了TSD
+
+7，USB EMI加上0欧电阻做兼容。
+
+8，debug FTAG改成测试点
+
+9，SD卡电源添加了ESD器件
+
+10，HDMI ESD改成分离器件
+
+11，WIFI部分删除了AP6330，gpio接了上拉电阻
+
+12，跟换了AUDIO电路，删除了耳机接口和spk
+
+13，EMAC添加了兼容IP101GR
+===========================2013-07-10==========================================================
+
+A20_HOMLET_STD_V1_01 ----> A20_HOMLET_STD_V1_10
+
+ 一、必须修改部分：
+     1、09 BESIDE CPU
+        1.DLLVDD网络增加电源网络，必须加上，否则无法与主控端的DLLVDD电源网络连接。
+
+     2、10 POWER
+        1.DCIN为5v输入和12v输入时分别增加了USB的供电电路，DCIN为5v输入增加了4个
+          开关是为了防止使用一个开关时由于插入大电流的设备时对其他usb设备产生影响。 
+        2.DCIN为5v和12v输出上的4R7欧电阻删除。
+
+     3、11 NAND+eMMC+Nor
+        1.电源NAND-VCC和VCC-PC上各一个对地电容104改为1uF,EMMC的pin W6上串接的电阻0欧改为33欧。
+
+     4、12 USB
+        1.USB的供电电路移到了第10页的POWER部分，并将4个usb口的供电独立。
+
+     5、14 KEY-IR-JTAG-UART-SD
+        1.SD卡部分的供电电路上串接一个2.2欧电阻，并将电容更改为10uF，形成RC电路。
+
+     6、15 HDMI-TVOUT
+        1.HDMI部分的5v供电由AV-5V更改为HDMI-5V，并且HDMI-5V与DC-5V间增加肖特基二极管。
+
+     7、18 MCU-LED
+        1.将MCU的第8 PIN上的网络POWER-LED删除。
+
+     8、20 GMAC
+        1.R271改为4K7， R272改为NC。
+
+
+ 
+ 二、参数、性能调整部分：
+     1、05 CPU1
+        1.主控的DDR部分的ZQ电阻由240欧更改为192欧。
+
+     2、06 CPU2
+        1.主控的PIN U19将接地改为网络A-GND,在09 BESIDE CPU页旁路电容部分和17 AUDIO页MIC部分有使用A-GND网络。
+        2、PH口上的网络删除，PI11口上的网络删除,PD19、PD20、PD21、PD22口上的网络删除。
+
+     3、07 DDR3 8bit  x 4pcs
+        1.CLK上串接电阻由24R更改为0欧电阻，跨接电容更改为100欧电阻。
+       
+     4、08 DDR3 16bit x 2pcs
+        1.CLK上串接电阻由24R更改为0欧电阻，跨接电容更改为100欧电阻。
+
+     5、09 BESIDE CPU
+        1.增加AVCC旁路电容4.7UF和104，并与A-GND网络连接，并增加了1个0欧电阻接地。
+        2.网络VRP、VRA2、VRA1的接地电容和电阻更改为A-GND网络后通过一个0欧电阻接地。
+
+     6、10 POWER
+        1.AVCC电源的输出电容4.7uF删除，在09 BESIDE CPU有增加了电容。
+        2.在5v电源输出端串接一个4.7欧电阻，防止插拔HDMI时出现短路拖死输入电源。
+
+     7、11 NAND+eMMC+Nor
+        1.增加了Nor flash电路的option。
+        2.删除对emmc电源有1.8v的支持，删除LDO电路。
+
+     8、12 USB
+        1.删除USB HUB外扩USB上的共模扼流圈。
+
+     9、15 HDMI-TVOUT
+        1.HDMI的HDMI-SCL和HDMI-SDA网络的上拉电阻由2.2k修改为1.8k。
+
+    10、17 AUDIO
+        1.MIC部分的MICM网络更改为A-GND网络。
+
+    12、19 EMAC
+        1.将GMAC-RGMII接口的网络标号，防止网络过多出错。
+
+    13、20 GMAC
+        1.将EMAC-MII/GMAC-MII接口的网络标号，防止网络过多出错。
+
+ 三、增加新功能部分：
+
+     增加TVIN功能：   
+     1、05 CPU1
+        1.TVIN的供电PIN W16(VCC33-TVIN)供电由DRAM-VCC更改为TVDACVCC。
+        2.TVIN的2.5v供电增加了TVIN-2V5，并与DRAM-VCC间增加了一个0欧电阻，当不使用TVIN时由DRAM-VCC供电，否则由TVIN-2V5供2.5v。
+        3.主控的接地PIN Y18和AA18为TVIN的地，在使用TVIN功能续分地为TVIN-GND，TVIN-GND与GND通过0R电阻一点接地。
+
+     2、06 CPU2
+        2.增加了TVIN网络接口，PIN AC18、AB18、AA17、Y17、AA16、Y16分别增加了网络TVIN0、TVIN1、TVIN2、TVIN3、VRP-TVIN、VRN-TVIN。
+
+     3、09 BESIDE CPU
+        1.TVIN网络VRP-TVIN和VRN-TVIN增加接地电容474。
+
+     4、22 TVIN
+        1.增加了TVIN功能电路。
+
+
+===========================2013-05-28==========================================================
+
+A20_HOMLET_STD_V1_00 ----> A20_HOMLET_STD_V1_01
+
+      1、05 CPU1
+         1.将主控的Y18和AA18名字更改为了GND33-TVIN和GND25-TVIN。
+
+      2、06 CPU2
+         1.WIFI控制信号WIFI-HOST-WAKE的GPIO由PD1更换为PI14(带中断功能);
+           BT控制信号BT-HOST-WAKE的GPIO由PI21更换为PI15(带中断功能)。 
+      
+      3、08 DDR3 16bit x 2pcs
+         1.电容C9由1uF更改为104。 
+
+      4、10 POWER
+         1.RTC供电电源由RTCVCC更改为RTCVDD。
+
+      5、15 HDMI-TVOUT
+         1.HDMI增加说明，HDMI座A型与C型的接线顺序是不同的，一定要注意，图上默认为A型。
+   
+      6、16 WIFI_BT
+         1.WIFI部分在CLK-32K和SDIO-CMD网络上分别增加2K和47K的上拉。
+             
+===============================================================================================
+END!

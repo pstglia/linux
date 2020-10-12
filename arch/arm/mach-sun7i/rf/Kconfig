@@ -1,0 +1,1 @@
+source "arch/arm/mach-sun7i/rf/sw_3g_module/Kconfig"

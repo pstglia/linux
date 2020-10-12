@@ -173,8 +173,37 @@ config INPUT_KEYRESET
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called keyreset.
-
+	           
+config  INPUT_DEVICE
+       tristate  "i2c device detect support"
+       depends on INPUT && I2C
+       default m
+       help
+        Sensors and CTPS of i2c bus to use the equipment inspection
+        If you say yes here you get support for Sensors and CTPS Detection.
+        
+config  INPUT_I2C_DEBUG
+       tristate  "i2c device debug support"
+       depends on INPUT && I2C
+       default m
+       help
+        Sensors and CTPS of i2c bus to use the equipment inspection
+        If you say yes here you get support for Sensors and CTPS debug.
+        
+        
+config  INPUT_INIT
+       tristate  "init device"
+       depends on INPUT
+       default y
+       help
+        init device
 comment "Input Device Drivers"
+
+config AW_VIRTUAL_MOUSE
+      tristate  "Allwinner Virtual Mouse support"
+      depends on INPUT
+      help
+	Allwinner Virtual Mouse support
 
 source "drivers/input/keyboard/Kconfig"
 
@@ -187,6 +216,13 @@ source "drivers/input/tablet/Kconfig"
 source "drivers/input/touchscreen/Kconfig"
 
 source "drivers/input/misc/Kconfig"
+
+source "drivers/input/gyr/Kconfig"
+
+source "drivers/input/e_compass/Kconfig"
+
+source "drivers/input/sw_touchscreen/Kconfig"
+source "drivers/input/lightsensor/Kconfig"
 
 endif
 

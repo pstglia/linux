@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 
+#include <asm/smp_plat.h>
 #include <asm/smp_scu.h>
 #include <asm/cacheflush.h>
 #include <asm/cputype.h>
@@ -27,8 +28,16 @@
  */
 unsigned int __init scu_get_core_count(void __iomem *scu_base)
 {
-	unsigned int ncores = __raw_readl(scu_base + SCU_CONFIG);
-	return (ncores & 0x03) + 1;
+	//unsigned int ncores = __raw_readl(scu_base + SCU_CONFIG);
+        unsigned int cores;
+
+        /* Read current CP15 Cache Size ID Register */
+        asm volatile ("mrc p15, 1, %0, c9, c0, 2" : "=r" (cores));
+
+        printk("[%s] cores=%x\n", __FUNCTION__, cores);
+        cores = ((cores >> 24) & 0x3) + 1;
+        return cores;
+	//return (ncores & 0x03) + 1;
 }
 
 /*
@@ -74,7 +83,7 @@ void scu_enable(void __iomem *scu_base)
 int scu_power_mode(void __iomem *scu_base, unsigned int mode)
 {
 	unsigned int val;
-	int cpu = smp_processor_id();
+	int cpu = cpu_logical_map(smp_processor_id());
 
 	if (mode > 3 || mode == 1 || cpu > 3)
 		return -EINVAL;

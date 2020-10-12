@@ -199,6 +199,9 @@ struct fsg_lun {
 	unsigned int	registered:1;
 	unsigned int	info_valid:1;
 	unsigned int	nofua:1;
+#ifdef CONFIG_USB_SW_SUN7I_USB
+	unsigned int	zero_disk:1;
+#endif
 
 	u32		sense_data;
 	u32		sense_data_info;
@@ -248,7 +251,7 @@ static inline int fsg_num_buffers_validate(void)
 }
 
 /* Default size of buffer length. */
-#define FSG_BUFLEN	((u32)16384)
+#define FSG_BUFLEN	((u32)32768)
 
 /* Maximal number of LUNs supported in mass storage function */
 #define FSG_MAX_LUNS	8
@@ -622,6 +625,7 @@ static struct usb_gadget_strings	fsg_stringtab = {
 
  /*-------------------------------------------------------------------------*/
 
+static int fsg_lun_fsync_sub(struct fsg_lun *curlun);
 /*
  * If the next two routines are called while the gadget is registered,
  * the caller must own fsg->filesem for writing.
@@ -725,6 +729,8 @@ static void fsg_lun_close(struct fsg_lun *curlun)
 {
 	if (curlun->filp) {
 		LDBG(curlun, "close backing file\n");
+        printk("usb close backing file: 0x%p\n", curlun);
+        fsg_lun_fsync_sub(curlun);
 		fput(curlun->filp);
 		curlun->filp = NULL;
 	}
@@ -898,3 +904,23 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	up_write(filesem);
 	return (rc < 0 ? rc : count);
 }
+#ifdef CONFIG_USB_SW_SUN7I_USB
+static ssize_t fsg_show_zero_disk(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct fsg_lun	*curlun = fsg_lun_from_dev(dev);
+
+	return sprintf(buf, "%u\n", curlun->zero_disk);
+}
+
+static ssize_t fsg_zero_disk(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct fsg_lun	*curlun = fsg_lun_from_dev(dev);
+    int value = 0;
+
+    sscanf(buf, "%d", &value);
+    curlun->zero_disk = value;
+
+	return count;
+}
+#endif

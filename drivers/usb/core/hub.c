@@ -869,6 +869,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 		u16 portstatus, portchange;
 
 		portstatus = portchange = 0;
+		dev_info(hub->intfdev, "[%s %d]\n", __func__, __LINE__);
 		status = hub_port_status(hub, port1, &portstatus, &portchange);
 		if (udev || (portstatus & USB_PORT_STAT_CONNECTION))
 			dev_dbg(hub->intfdev,
@@ -2845,6 +2846,7 @@ int usb_remote_wakeup(struct usb_device *udev)
 
 int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
 {
+    dev_info(&udev->dev, "%s\n", __func__);
 	return 0;
 }
 
@@ -2857,15 +2859,16 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	int		status;
 	u16		portchange, portstatus;
 
+    dev_info(&udev->dev, "%s\n", __func__);
 	status = hub_port_status(hub, port1, &portstatus, &portchange);
 	status = check_port_resume_type(udev,
 			hub, port1, status, portchange, portstatus);
 
 	if (status) {
-		dev_dbg(&udev->dev, "can't resume, status %d\n", status);
+		dev_info(&udev->dev, "can't resume, status %d\n", status);
 		hub_port_logical_disconnect(hub, port1);
 	} else if (udev->reset_resume) {
-		dev_dbg(&udev->dev, "reset-resume\n");
+		dev_info(&udev->dev, "reset-resume\n");
 		status = usb_reset_and_verify_device(udev);
 	}
 	return status;
@@ -2880,6 +2883,19 @@ static int hub_suspend(struct usb_interface *intf, pm_message_t msg)
 	unsigned		port1;
 	int			status;
 
+    /* set remote wakeup */  
+    if(hdev->parent){
+        int status = 0;
+        status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),				
+                                USB_REQ_SET_FEATURE, USB_RECIP_DEVICE,				
+                                USB_DEVICE_REMOTE_WAKEUP, 0,				
+                                NULL, 0,				
+                                USB_CTRL_SET_TIMEOUT);		
+        if(status)		    
+            dev_info(&intf->dev, "set hub remote wakeup failed\n");    
+        else
+            dev_info(&intf->dev, "set hub remote wakeup\n");
+    }
 	/* Warn if children aren't already suspended */
 	for (port1 = 1; port1 <= hdev->maxchild; port1++) {
 		struct usb_device	*udev;
@@ -2913,9 +2929,24 @@ static int hub_suspend(struct usb_interface *intf, pm_message_t msg)
 static int hub_resume(struct usb_interface *intf)
 {
 	struct usb_hub *hub = usb_get_intfdata(intf);
+    struct usb_device   *hdev = hub->hdev;
 
-	dev_dbg(&intf->dev, "%s\n", __func__);
+	dev_info(&intf->dev, "%s\n", __func__);
 	hub_activate(hub, HUB_RESUME);
+
+	/* set remote wakeup */  
+    if(hdev->parent){
+        int status = 0;
+        status = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),				
+                                USB_REQ_CLEAR_FEATURE, USB_RECIP_DEVICE,				
+                                USB_DEVICE_REMOTE_WAKEUP, 0,				
+                                NULL, 0,				
+                                USB_CTRL_SET_TIMEOUT);		
+        if(status)		    
+            dev_info(&intf->dev, "clear hub remote wakeup failed\n");    
+        else
+            dev_info(&intf->dev, "clear hub remote wakeup\n");
+    }
 	return 0;
 }
 
@@ -2923,7 +2954,7 @@ static int hub_reset_resume(struct usb_interface *intf)
 {
 	struct usb_hub *hub = usb_get_intfdata(intf);
 
-	dev_dbg(&intf->dev, "%s\n", __func__);
+	dev_info(&intf->dev, "%s\n", __func__);
 	hub_activate(hub, HUB_RESET_RESUME);
 	return 0;
 }

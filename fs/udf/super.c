@@ -1109,7 +1109,7 @@ static int udf_load_vat(struct super_block *sb, int p_index, int type1_index)
 	} else if (map->s_partition_type == UDF_VIRTUAL_MAP20) {
 		vati = UDF_I(sbi->s_vat_inode);
 		if (vati->i_alloc_type != ICBTAG_FLAG_AD_IN_ICB) {
-			pos = udf_block_map(sbi->s_vat_inode, 0);
+			pos = udf_block_map(sbi->s_vat_inode, 0, NULL);
 			bh = sb_bread(sb, pos);
 			if (!bh)
 				return 1;

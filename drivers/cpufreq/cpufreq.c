@@ -68,7 +68,7 @@ static DEFINE_PER_CPU(int, cpufreq_policy_cpu);
 static DEFINE_PER_CPU(struct rw_semaphore, cpu_policy_rwsem);
 
 #define lock_policy_rwsem(mode, cpu)					\
-static int lock_policy_rwsem_##mode					\
+int lock_policy_rwsem_##mode						\
 (int cpu)								\
 {									\
 	int policy_cpu = per_cpu(cpufreq_policy_cpu, cpu);		\
@@ -93,7 +93,7 @@ static void unlock_policy_rwsem_read(int cpu)
 	up_read(&per_cpu(cpu_policy_rwsem, policy_cpu));
 }
 
-static void unlock_policy_rwsem_write(int cpu)
+void unlock_policy_rwsem_write(int cpu)
 {
 	int policy_cpu = per_cpu(cpufreq_policy_cpu, cpu);
 	BUG_ON(policy_cpu == -1);
@@ -535,6 +535,64 @@ static ssize_t show_affected_cpus(struct cpufreq_policy *policy, char *buf)
 	return show_cpus(policy->cpus, buf);
 }
 
+#ifdef CONFIG_CPU_FREQ_USR_EVNT_NOTIFY
+/**
+ * show_user_event_notify - user event notify
+ */
+static ssize_t show_user_event_notify(struct cpufreq_policy *policy, char *buf)
+{
+	cpufreq_user_event_notify();
+	return sprintf(buf, "freq up");;
+}
+#endif
+
+#ifdef CONFIG_CPU_FREQ_SETFREQ_DEBUG
+extern int setgetfreq_debug;
+extern unsigned long long setfreq_time_usecs;
+extern unsigned long long getfreq_time_usecs;
+
+static ssize_t show_freq_debug_enable(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "%d\n", setgetfreq_debug);
+}
+
+static ssize_t store_freq_debug_enable(struct cpufreq_policy *policy,
+					const char *buf, size_t count)
+{
+    char value;
+    if(strlen(buf) != 2)
+        return -EINVAL;
+    if(buf[0] < '0' || buf[0] > '1')
+		return -EINVAL;
+    value = buf[0];
+    switch(value)
+    {
+        case '1':
+            setgetfreq_debug = 1;
+            break;
+        case '0':
+            setgetfreq_debug = 0;
+			setfreq_time_usecs = 0;
+			getfreq_time_usecs = 0;
+            break;
+        default:
+            return -EINVAL;
+    }
+	return count;
+}
+
+static ssize_t show_freq_set_time(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "%llu\n", setfreq_time_usecs);
+}
+
+static ssize_t show_freq_get_time(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "%llu\n", getfreq_time_usecs);
+}
+#endif
+
+
 static ssize_t store_scaling_setspeed(struct cpufreq_policy *policy,
 					const char *buf, size_t count)
 {
@@ -590,6 +648,14 @@ cpufreq_freq_attr_rw(scaling_min_freq);
 cpufreq_freq_attr_rw(scaling_max_freq);
 cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
+#ifdef CONFIG_CPU_FREQ_USR_EVNT_NOTIFY
+cpufreq_freq_attr_ro(user_event_notify);
+#endif
+#ifdef CONFIG_CPU_FREQ_SETFREQ_DEBUG
+cpufreq_freq_attr_rw(freq_debug_enable);
+cpufreq_freq_attr_ro(freq_set_time);
+cpufreq_freq_attr_ro(freq_get_time);
+#endif
 
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
@@ -603,6 +669,14 @@ static struct attribute *default_attrs[] = {
 	&scaling_driver.attr,
 	&scaling_available_governors.attr,
 	&scaling_setspeed.attr,
+#ifdef CONFIG_CPU_FREQ_USR_EVNT_NOTIFY
+	&user_event_notify.attr,
+#endif
+#ifdef CONFIG_CPU_FREQ_SETFREQ_DEBUG
+	&freq_debug_enable.attr,
+	&freq_set_time.attr,
+	&freq_get_time.attr,
+#endif
 	NULL
 };
 
@@ -1918,6 +1992,60 @@ int cpufreq_unregister_driver(struct cpufreq_driver *driver)
 }
 EXPORT_SYMBOL_GPL(cpufreq_unregister_driver);
 
+#ifdef CONFIG_CPU_FREQ_USR_EVNT_NOTIFY
+/* user event notification */
+void cpufreq_user_event_notify(void)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(0);
+	if(policy && policy->governor) {
+        policy->governor->governor(policy, CPUFREQ_GOV_USRENET);
+    }
+}
+EXPORT_SYMBOL_GPL(cpufreq_user_event_notify);
+#endif
+
+#include <linux/reboot.h>
+#ifdef CONFIG_CPU_FREQ_GOV_FANTASYS
+extern int cpufreq_fantasys_cpu_lock(int num_core);
+#endif
+static int reboot_notifier_call(struct notifier_block *this, unsigned long code, void *_cmd)
+{
+    struct cpufreq_policy policy;
+    int cpu;
+
+    printk("%s:%s: stop none boot cpus\n", __FILE__, __func__);
+
+    #ifdef CONFIG_CPU_FREQ_GOV_FANTASYS
+    if (cpufreq_get_policy(&policy, 0)) {
+        printk("%s:%s try to get policy failed!\n", __FILE__, __func__);
+        return NOTIFY_DONE;
+    }
+    if (!strcmp(policy.governor->name, "fantasys")) {
+        cpufreq_fantasys_cpu_lock(1);
+        while (num_online_cpus() != 1) {
+            msleep(20);
+        }
+        goto out;
+    }
+    #endif
+
+    for_each_online_cpu(cpu) {
+        if (cpu == 0)
+            continue;
+
+        cpu_down(cpu);
+    }
+
+out:
+    printk("%s:%s: stop none boot cpus done\n", __FILE__, __func__);
+    return NOTIFY_DONE;
+}
+
+static struct notifier_block reboot_notifier = {
+	.notifier_call = reboot_notifier_call,
+};
+
+
 static int __init cpufreq_core_init(void)
 {
 	int cpu;
@@ -1933,6 +2061,9 @@ static int __init cpufreq_core_init(void)
 	cpufreq_global_kobject = kobject_create_and_add("cpufreq", &cpu_subsys.dev_root->kobj);
 	BUG_ON(!cpufreq_global_kobject);
 	register_syscore_ops(&cpufreq_syscore_ops);
+
+	/* register reboot notifier for process cpus when reboot */
+	register_reboot_notifier(&reboot_notifier);
 
 	return 0;
 }

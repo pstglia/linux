@@ -1,0 +1,175 @@
+/*
+ * rtl8821au usb wifi power management API
+ */
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/delay.h>
+#include <linux/err.h>
+#include <mach/sys_config.h>
+#include <mach/gpio.h>
+#include <linux/regulator/consumer.h>
+#include "wifi_pm.h"
+
+#define rtl8821au_msg(...)    do {printk("[rtl8821au]: "__VA_ARGS__);} while(0)
+
+static int rtl8821au_powerup = 0;
+static int rtk8192cu_suspend = 0;
+static char * axp_name = NULL;
+static int rtk_rtl8821au_wl_regon = 0;
+
+// power control by axp
+static int rtl8821au_module_power(int onoff)
+{
+	struct regulator* wifi_ldo = NULL;
+	static int first = 1;
+	int ret = 0;
+
+	rtl8821au_msg("rtl8821au module power set by axp.\n");
+	wifi_ldo = regulator_get(NULL, axp_name);
+	if (IS_ERR(wifi_ldo)) {
+		rtl8821au_msg("get power regulator failed.\n");
+		return -ret;
+	}
+
+	if (first) {
+		rtl8821au_msg("first time\n");
+		ret = regulator_force_disable(wifi_ldo);
+		if (ret < 0) {
+			rtl8821au_msg("regulator_force_disable fail, return %d.\n", ret);
+			regulator_put(wifi_ldo);
+			return ret;
+		}
+		regulator_put(wifi_ldo);
+		first = 0;
+		return ret;
+	}
+
+	if (onoff) {
+		rtl8821au_msg("regulator on.\n");
+		ret = regulator_set_voltage(wifi_ldo, 3300000, 3300000);
+		if (ret < 0) {
+			rtl8821au_msg("regulator_set_voltage fail, return %d.\n", ret);
+			regulator_put(wifi_ldo);
+			return ret;
+		}
+
+		ret = regulator_enable(wifi_ldo);
+		if (ret < 0) {
+			rtl8821au_msg("regulator_enable fail, return %d.\n", ret);
+			regulator_put(wifi_ldo);
+			return ret;
+		}
+	} else {
+		rtl8821au_msg("regulator off.\n");
+		ret = regulator_disable(wifi_ldo);
+		if (ret < 0) {
+			rtl8821au_msg("regulator_disable fail, return %d.\n", ret);
+			regulator_put(wifi_ldo);
+			return ret;
+		}
+	}
+	regulator_put(wifi_ldo);
+	return ret;
+}
+
+static int rtl8821au_gpio_ctrl(int level)
+{
+	int ret = 0;
+	unsigned long flags = 0;
+
+	rtl8821au_msg("rtl8821au_gpio_ctrl(level = %d)\n", level);
+
+	if(!rtk_rtl8821au_wl_regon)
+		return -1;
+
+	if (1==level)
+		flags = GPIOF_OUT_INIT_HIGH;
+	else
+		flags = GPIOF_OUT_INIT_LOW;
+
+	ret = gpio_request_one(rtk_rtl8821au_wl_regon, flags, "rtl8821au_wl_regon");
+	if (ret) {
+		rtl8821au_msg("failed to set gpio rtl8821au_wl_regon to %d !\n", level);
+		return -1;
+	} else {
+		gpio_free(rtk_rtl8821au_wl_regon);
+		rtl8821au_msg("succeed to set gpio rtl8821au_wl_regon to %d !\n", level);
+	}
+
+	if (level) {
+		rtl8821au_module_power(level);
+	} else {
+		rtl8821au_module_power(level);
+	}
+
+	return 0;
+}
+
+void rtl8821au_power(int mode, int *updown)
+{
+    if (mode) {
+        if (*updown) {
+			rtl8821au_gpio_ctrl(1);
+			udelay(50);
+			rtl8821au_powerup = 1;
+        } else {
+			rtl8821au_gpio_ctrl(0);
+			rtl8821au_powerup = 0;
+        }
+        rtl8821au_msg("usb wifi power state: %s\n", *updown ? "on" : "off");
+    } else {
+        if (rtl8821au_powerup)
+            *updown = 1;
+        else
+            *updown = 0;
+		rtl8821au_msg("usb wifi power state: %s\n", rtl8821au_powerup ? "on" : "off");
+    }
+    return;	
+}
+
+static void rtl8821au_standby(int instadby)
+{
+	if (instadby) {
+		if (rtl8821au_powerup) {
+			rtl8821au_gpio_ctrl(0);
+			rtk8192cu_suspend = 1;
+		}
+	} else {
+		if (rtk8192cu_suspend) {
+			rtl8821au_gpio_ctrl(1);
+			rtk8192cu_suspend = 0;
+		}
+	}
+	rtl8821au_msg("usb wifi : %s\n", instadby ? "suspend" : "resume");
+}
+
+void rtl8821au_gpio_init(void)
+{
+	script_item_u val;
+	script_item_value_type_e type;
+	struct wifi_pm_ops *ops = &wifi_select_pm_ops;
+
+	rtl8821au_msg("exec rtl8821au_wifi_gpio_init\n");
+
+	type = script_get_item(wifi_para, "wifi_power", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_STR != type) {
+		rtl8821au_msg("failed to fetch wifi_power\n");
+		return ;
+	}
+	axp_name = val.str;
+
+	type = script_get_item(wifi_para, "rtl8821au_wl_regon", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_PIO!=type)
+		rtl8821au_msg("get rtk_rtl8821au_wl_regon gpio failed\n");
+	else
+		rtk_rtl8821au_wl_regon = val.gpio.gpio;
+	
+	rtl8821au_powerup = 0;
+	rtk8192cu_suspend = 0;
+	ops->power     = rtl8821au_power;
+	ops->standby   = rtl8821au_standby;
+
+	// force to disable wifi power in system booting,
+	// make sure wifi power is down when system start up
+	rtl8821au_gpio_ctrl(0);
+}

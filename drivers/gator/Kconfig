@@ -1,0 +1,60 @@
+#
+# gator driver configuration
+#
+
+menuconfig GATOR
+	bool "Gator support"
+
+if GATOR
+
+config GATOR_PERF
+	tristate "gator driver for ds-5"
+	default n
+	select PROFILING
+	select TRACEPOINTS
+	select RING_BUFFER
+	select EVENT_TRACING
+	select EVENT_POWER_TRACING_DEPRECATED
+	select CONTEXT_SWITCH_TRACER
+	select TRACING
+	select FTRACE
+	select ENABLE_DEFAULT_TRACERS
+	select BRANCH_PROFILE_NONE
+	select PERF_EVENTS
+	---help---
+		Gator driver is a driver for streamline, which is
+		a function in arm's DS-5.
+		Strongly recommended that it should be configured
+		as a module!
+		NOTE
+		Enable the High Resolution Timer Support option.
+		Enable Use local timer interrupts if you are using
+		a Symmetric MultiProcessing (SMP) target.
+
+config GATOR_WITH_MALI_SUPPORT
+	bool
+
+choice
+	prompt "Enable Mali GPU support in Gator"
+	depends on GATOR_PERF
+	optional
+
+config GATOR_MALI_400MP
+	bool "Mali-400MP"
+	select GATOR_WITH_MALI_SUPPORT
+
+config GATOR_MALI_T6XX
+	bool "Mali-T604 or Mali-T658"
+	select GATOR_WITH_MALI_SUPPORT
+
+endchoice
+
+config GATOR_MALI_PATH
+	string "Path to Mali driver"
+	depends on GATOR_WITH_MALI_SUPPORT
+	default "modules/mali/DX910-SW-99002-r3p2-01rel2/driver/src/devicedrv/mali/"
+	help
+		The gator code adds this to its include path so it can get the Mali
+		trace headers with: #include "linux/mali_linux_trace.h"
+
+endif

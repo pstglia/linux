@@ -1,7 +1,7 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2012, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh_sdmmc_linux.c 383841 2013-02-08 00:10:58Z $
+ * $Id: bcmsdh_sdmmc_linux.c 363783 2012-10-19 06:27:14Z $
  */
 
 #include <typedefs.h>
@@ -136,8 +136,6 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 	#endif
 			sd_trace(("F2 found, calling bcmsdh_probe...\n"));
 			ret = bcmsdh_probe(&func->dev);
-			if (ret < 0 && gInstance)
-				gInstance->func[2] = NULL;
 		}
 	} else {
 		ret = -ENODEV;
@@ -196,9 +194,11 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 	if (func->num != 2)
 		return 0;
 
-	sd_trace(("%s Enter\n", __FUNCTION__));
+	sd_trace_hw4(("%s Enter\n", __FUNCTION__));
+
 	if (dhd_os_check_wakelock(bcmsdh_get_drvdata()))
 		return -EBUSY;
+
 	sdio_flags = sdio_get_host_pm_caps(func);
 
 	if (!(sdio_flags & MMC_PM_KEEP_POWER)) {
@@ -212,9 +212,10 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 		sd_err(("%s: error while trying to keep power\n", __FUNCTION__));
 		return ret;
 	}
+
 #if defined(OOB_INTR_ONLY)
 	bcmsdh_oob_intr_set(0);
-#endif 
+#endif	/* defined(OOB_INTR_ONLY) */
 	dhd_mmc_suspend = TRUE;
 	smp_mb();
 
@@ -225,14 +226,14 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 {
 #if defined(OOB_INTR_ONLY)
 	struct sdio_func *func = dev_to_sdio_func(pdev);
-#endif 
-	sd_trace(("%s Enter\n", __FUNCTION__));
+#endif /* defined(OOB_INTR_ONLY) */
+	sd_trace_hw4(("%s Enter\n", __FUNCTION__));
+
 	dhd_mmc_suspend = FALSE;
 #if defined(OOB_INTR_ONLY)
 	if ((func->num == 2) && dhd_os_check_if_up(bcmsdh_get_drvdata()))
 		bcmsdh_oob_intr_set(1);
-#endif 
-
+#endif /* (OOB_INTR_ONLY) */
 	smp_mb();
 	return 0;
 }
@@ -283,11 +284,13 @@ static struct sdio_driver bcmsdh_sdmmc_driver = {
 	.remove		= bcmsdh_sdmmc_remove,
 	.name		= "bcmsdh_sdmmc",
 	.id_table	= bcmsdh_sdmmc_ids,
+#if !defined(CONFIG_ARCH_RHEA) || !defined(CONFIG_ARCH_CAPRI)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM)
 	.drv = {
 	.pm	= &bcmsdh_sdmmc_pm_ops,
 	},
 #endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM) */
+#endif /* !defined(CONFIG_ARCH_RHEA) || !defined(CONFIG_ARCH_CAPRI) */
 	};
 
 struct sdos_info {
@@ -398,9 +401,9 @@ int sdio_function_init(void)
 		return -ENOMEM;
 
 	error = sdio_register_driver(&bcmsdh_sdmmc_driver);
-	if (error) {
+	if (error && gInstance) {
 		kfree(gInstance);
-		gInstance = NULL;
+		gInstance = 0;
 	}
 
 	return error;
@@ -417,8 +420,6 @@ void sdio_function_cleanup(void)
 
 	sdio_unregister_driver(&bcmsdh_sdmmc_driver);
 
-	if (gInstance) {
+	if (gInstance)
 		kfree(gInstance);
-		gInstance = NULL;
-	}
 }
