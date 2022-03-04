@@ -54,7 +54,7 @@ init_variables() {
 
     if [ -z "${TARGET_TOOLS_PREFIX}" ]; then
         echo >&6 "Warning: TARGET_TOOLS_PREFIX was not set."
-        TARGET_TOOLS_PREFIX="$TOP/prebuilts/gcc/${_host_os}-x86/x86/x86_64-linux-android-4.7/bin/x86_64-linux-android-"
+        TARGET_TOOLS_PREFIX="$TOP/prebuilts/gcc/${_host_os}-x86/x86/i686-linux-android-4.7/bin/i686-linux-android-"
 
     fi
     if [ -z "${CCACHE_TOOLS_PREFIX}" ]; then
@@ -65,7 +65,7 @@ init_variables() {
 
     # force using minigzip instead of gzip to build bzimage
     #export PATH="$TOP/vendor/intel/support:$PATH"
-	export PATH="$TOP/prebuilts/gcc/${_host_os}-x86/x86/x86_64-linux-android-4.7/bin$PATH"
+	export PATH="$TOP/prebuilts/gcc/${_host_os}-x86/x86/i686-linux-android-4.7/bin:$PATH"
 	export CROSS_COMPILE="`basename ${TARGET_TOOLS_PREFIX}`"
 	
     if [ -z "$kernel_build_64bit" -a -z "$CROSS_COMPILE" ];then
@@ -419,13 +419,53 @@ main() {
         echo >&6 "---------------------------------"
         make_kernel ${TARGET_DEVICE}
         exit_on_error $?
-		cp ramdisk.img out/target/product/ramdisk.img
-		cp boot_cmdline out/target/product/boot_cmdline
-		cp bootstub out/target/product/bootstub
-		stitch.sh  out/target/product/boot_cmdline out/target/product/bootstub out/target/product/kernel out/target/product/ramdisk.img 0 0 out/target/product/boot.unsigned
-        ./gen_os --input out/target/product/boot.unsigned --output out/target/product/boot.img --xml MOS_OTA.XML --platform-type MFDC0 --sign-with isu
+
+	
+
+#		cp ramdisk.img out/target/product/ramdisk.img
+#		cp boot_cmdline out/target/product/boot_cmdline
+#		cp bootstub out/target/product/bootstub
+#		stitch.sh  out/target/product/boot_cmdline out/target/product/bootstub out/target/product/kernel out/target/product/ramdisk.img 0 0 out/target/product/boot.unsigned
+#        ./gen_os --input out/target/product/boot.unsigned --output out/target/product/boot.img --xml MOS_OTA.XML --platform-type MFDC0 --sign-with isu
+
+        # Creates new boot.img...
+        if [  ! -f $OUT/ramdisk.img ] || [ ! -f $OUT/cmdline ]
+        then
+          echo "ramdisk.img AND/OR cmdline not found in [$OUT] dir"
+          echo "Check if bootimg was created and if you set your env (source build/envsetup.sh && lunch)"
+          exit 1
+        fi
+        PATH_SRC_ROOT=$(pwd)
+        PATH_OUT_KERNEL_BUILD="out/target/product/kernel_build"
+        PATH_OUT_MODULES_BUILD="out/target/product/kernel_modules/lib/modules/3.10.20/kernel/drivers/external_drivers/intel_media/bld/clovertrail" 
+	
+	rm -f ramdisk ramdisk.gz 2>/dev/null
+        rm -rf ramdisk_edit;mkdir ramdisk_edit
+	cd ramdisk_edit || exit 1
+        zcat $OUT/ramdisk.img | cpio -i
+        rm lib/modules/*.ko
+        find ../out/target/product/kernel_modules/lib/modules/3.10.20/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
+	for arq in $(ls lib/modules/*.ko);do strip -d $arq;done
+	for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
+        # Re-sign drivers after strip
+        for arq in $(ls lib/modules/*ko);do ${PATH_SRC_ROOT}/kernel/scripts/sign-file sha256 ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.priv ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.x509 ${arq};done
+        find | cpio -o --format='newc' > ../ramdisk
+        cd ..
+        gzip ramdisk
+
+         # Now pack it again, using stock boot.img as base for headers & other stuff...
+	./pack_intel Venue_8_WiFi_KK4.4.2v1.33.boot.img out/target/product/kernel ramdisk.gz $OUT/cmdline new_boot.img
+        if [ $? -ne 0 ]
+        then
+          echo "pack_intel failure"
+          exit 1
+        fi
+        echo "new_boot.img created"
+        ls -l new_boot.img
+        rm -rf ramdisk_edit
+        rm -f ramdisk.gz
     fi
-    run_depmod
+    #run_depmod
     exit 0
 }
 
