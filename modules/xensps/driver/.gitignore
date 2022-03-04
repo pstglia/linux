@@ -1,0 +1,14 @@
+*.order
+*.symvers
+*.ko
+*.o
+*.cmd
+spsvc_module.mod.c
+secplatsvc.mod.c
+.tmp_versions/
+*~
+*.stripped
+*.unsigned
+*.dig
+*.sig
+

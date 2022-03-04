@@ -1,0 +1,11 @@
+# To build this driver standalone for an x86 kernel:
+#
+# export KERNEL_SRC=$T/kernel
+# export KERNEL_BUILD=$T/out/target/product/<target_platform>/kernel_build
+#
+# make O=$KERNEL_BUILD -C $KERNEL_SRC SUBDIRS=$PWD modules ARCH=x86 SUBARCH=i386 clean
+# make O=$KERNEL_BUILD -C $KERNEL_SRC SUBDIRS=$PWD modules ARCH=x86 SUBARCH=i386
+
+obj-m := secplatsvc.o
+secplatsvc-objs := spsvc_module.o
+

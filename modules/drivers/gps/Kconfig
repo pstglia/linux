@@ -1,0 +1,21 @@
+menuconfig GPS
+	bool "Gps Adapters"
+	default n
+	---help---
+	  Say Y here to enable selecting GPS adapters.
+config GPS_BCM4752
+	bool "broadcom bcm4752 driver"
+	default y
+	---help---
+	This driver adds support for control broadcom bcm4752 gpio 
+
+if GPS
+
+# Intel MID GPS
+source "drivers/external_drivers/drivers/gps/intel_mid_gps/Kconfig"
+
+# TI's ST based wl128x GPS
+source "drivers/external_drivers/drivers/gps/wl128x/Kconfig"
+
+endif # GPS
+

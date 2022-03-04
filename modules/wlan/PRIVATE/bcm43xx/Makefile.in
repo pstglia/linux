@@ -1,0 +1,6 @@
+obj-$(CONFIG_BCMDHD) := %BCM_DRIVER%.o
+%BCM_DRIVER%-objs := %BCM_DRIVER%_bin.o
+
+ifeq ($(CONFIG_BCMDHD),m)
+EXTRA_LDFLAGS += --strip-debug
+endif
