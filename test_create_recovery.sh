@@ -1,5 +1,5 @@
 #!/bin/bash       
-    OUT=/home/slackware/paulo/ANDROID/FONTES/linux_novo/arqs_recovery
+    OUT=/home/slackware/paulo/ANDROID/FONTES/kernel_KK_dell_git/arqs_recovery
     rm -r $OUT;mkdir $OUT; cd $OUT
     ../unpack_intel ../dual_recovery.img kernel ramdisk.img cmdline
     cd ..
@@ -24,6 +24,10 @@
         for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
         # Re-sign drivers after strip
         for arq in $(ls lib/modules/*ko);do ${PATH_SRC_ROOT}/kernel/scripts/sign-file sha256 ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.priv ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.x509 ${arq};done
+
+        # Auth device for adb (build machine)
+        mkdir -p data/misc/adb/
+        cp ~/.android/adbkey.pub data/misc/adb/adb_keys
 
         find | cpio -o --format='newc' > ../ramdisk
         cd ..
