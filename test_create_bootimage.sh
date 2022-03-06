@@ -8,14 +8,14 @@
         fi
         PATH_SRC_ROOT=$(pwd)
         PATH_OUT_KERNEL_BUILD="out/target/product/kernel_build"
-        PATH_OUT_MODULES_BUILD="out/target/product/kernel_modules/lib/modules/3.10.20/kernel/drivers/external_drivers/intel_media/bld/clovertrail" 
+        PATH_OUT_MODULES_BUILD="out/target/product/kernel_modules/lib/modules/3.10.20*/kernel/drivers/external_drivers/intel_media/bld/clovertrail" 
 	
 	rm -f ramdisk ramdisk.gz 2>/dev/null
         rm -rf ramdisk_edit;mkdir ramdisk_edit
 	cd ramdisk_edit || exit 1
         zcat $OUT/ramdisk.img | cpio -i
         rm lib/modules/*.ko
-        find ../out/target/product/kernel_modules/lib/modules/3.10.20/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
+        find ../out/target/product/kernel_modules/lib/modules/3.10.20*/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
 	for arq in $(ls lib/modules/*.ko);do strip -d $arq;done
         for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
         # Re-sign drivers after strip
