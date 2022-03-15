@@ -20,7 +20,7 @@
         for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
         # Re-sign drivers after strip
         for arq in $(ls lib/modules/*ko);do ${PATH_SRC_ROOT}/kernel/scripts/sign-file sha256 ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.priv ${PATH_SRC_ROOT}/${PATH_OUT_KERNEL_BUILD}/signing_key.x509 ${arq};done
-
+cp /home/slackware/paulo/ANDROID/FONTES/LINEAGE/device/dell/P801_NoModem/debuglog.sh ./sbin
         find | cpio -o --format='newc' > ../ramdisk
         cd ..
         gzip ramdisk

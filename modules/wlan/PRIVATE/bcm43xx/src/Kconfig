@@ -1,6 +1,8 @@
 config BCMDHD
 	tristate "Broadcom BCM4334, 4335, 43241 wireless cards support"
 	depends on MMC
+	select WIRELESS_EXT
+	select WEXT_PRIV
 	---help---
 	  This module adds support for wireless adapters based on
 	  Broadcom BCM4334, 4335, 43241 chipset.
@@ -20,6 +22,12 @@ config BCMDHD_GENERIC_CHIP_SUPPORT
 	depends on BCMDHD
 	---help---
 		Disable any chip specific options.
+
+config BCM4330
+	bool "Broadcom BCM4330 support only"
+	depends on BCMDHD
+	---help---
+		Enable any BCM4330 specific options.
 
 config BCM4334
 	bool "Broadcom BCM4334 support only"

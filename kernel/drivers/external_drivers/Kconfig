@@ -43,4 +43,16 @@ if EXTERNAL_CAMERA
 source "drivers/external_drivers/camera/Kconfig"
 endif
 
+menuconfig BCM4330_EXTERNAL
+        bool "Add external driver bcm4330"
+        depends on EXTERNAL_DRIVERS
+        default y
+        help
+          Add external driver bcm4330
+
+if BCM4330_EXTERNAL
+source "drivers/external_drivers/bcm43xx/Kconfig"
+endif
+
+
 endif
