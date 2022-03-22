@@ -25,7 +25,7 @@ config BCMDHD_GENERIC_CHIP_SUPPORT
 
 config BCM4330
 	bool "Broadcom BCM4330 support only"
-	depends on BCMDHD
+	depends on BCMDHD && CFG80211
 	---help---
 		Enable any BCM4330 specific options.
 
