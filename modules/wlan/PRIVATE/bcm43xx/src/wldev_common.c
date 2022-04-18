@@ -224,8 +224,10 @@ s32 wldev_iovar_setbuf_bsscfg(
 		mutex_lock(buf_sync);
 	}
 	iovar_len = wldev_mkiovar_bsscfg(iovar_name, param, paramlen, buf, buflen, bsscfg_idx);
-	if (iovar_len > 0)
+	if (iovar_len > 0) {
 		ret = wldev_ioctl(dev, WLC_SET_VAR, buf, iovar_len, TRUE);
+		WLDEV_ERROR(("PST DEBUG 3 %s: wldev_ioctl = %d \n", __FUNCTION__, ret));
+	}
 	else {
 		ret = BCME_BUFTOOSHORT;
 	}
@@ -239,12 +241,15 @@ s32 wldev_iovar_setbuf_bsscfg(
 s32 wldev_iovar_setint_bsscfg(
 	struct net_device *dev, s8 *iovar, s32 val, s32 bssidx)
 {
+	s32 ret = 0;
 	s8 iovar_buf[WLC_IOCTL_SMLEN];
 
 	val = htod32(val);
 	memset(iovar_buf, 0, sizeof(iovar_buf));
-	return wldev_iovar_setbuf_bsscfg(dev, iovar, &val, sizeof(val), iovar_buf,
+	ret =  wldev_iovar_setbuf_bsscfg(dev, iovar, &val, sizeof(val), iovar_buf,
 		sizeof(iovar_buf), bssidx, NULL);
+	WLDEV_ERROR(("PST DEBUG 3 %s: wldev_iovar_setbuf_bsscfg = %d \n", __FUNCTION__, ret));
+	return ret;
 }
 
 
