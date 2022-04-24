@@ -1,0 +1,14 @@
+
+config TOUCHSCREEN_FT5506
+	tristate "FT5506 touch controller"
+	depends on I2C
+	help
+	  Say Y here if you have a  FT5506 I2C touch controller
+	  connected to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called FT5506.
+
+
