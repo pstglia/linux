@@ -398,7 +398,7 @@ uint dhd_download_fw_on_driverload = TRUE;
 /* Definitions to provide path to the firmware and nvram
  * example nvram_path[MOD_PARAM_PATHLEN]="/projects/wlan/nvram.txt"
  */
-char firmware_path[MOD_PARAM_PATHLEN];
+char firmware_path[MOD_PARAM_PATHLEN] = "/system/etc/firmware/fw_bcmdhd.bin";
 char nvram_path[MOD_PARAM_PATHLEN];
 
 /* information string to keep firmware, chio, cheip version info visiable from log */
@@ -3018,6 +3018,7 @@ dhd_open(struct net_device *net)
 
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 	/* Update FW path if it was changed */
+/*
 	if (strlen(firmware_path) != 0) {
 		if (firmware_path[strlen(firmware_path)-1] == '\n')
 			firmware_path[strlen(firmware_path)-1] = '\0';
@@ -3025,7 +3026,7 @@ dhd_open(struct net_device *net)
 		strncpy(fw_path, firmware_path, sizeof(fw_path)-1);
 		firmware_path[0] = '\0';
 	}
-
+*/
 
 #if defined(SUPPORT_MULTIPLE_REVISION)
 	/* dhd_open() can be call several times when loading failed */
