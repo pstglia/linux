@@ -44,7 +44,7 @@ _logfile_prefix=`date "+build.%Y%m%d%H%M"`
 _nnn=0
 _logfile=""
 _preserve_kernel_config=""
-_menuconfig="false"
+_menuconfig="true"
 _soc_type="mfld"
 _host_os=`uname -s | tr '[:upper:]' '[:lower:]'`
 TARGET_BOARD_PLATFORM="clovertrail"
@@ -445,6 +445,7 @@ main() {
         zcat $OUT/ramdisk.img | cpio -i
         rm lib/modules/*.ko
         find ../out/target/product/kernel_modules/lib/modules/3.10.20*/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
+cp /home/slackware/paulo/ANDROID/FONTES/LINEAGE/device/dell/P801_NoModem/debuglog.sh ./sbin
 	for arq in $(ls lib/modules/*.ko);do strip -d $arq;done
 	for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
         # Re-sign drivers after strip
