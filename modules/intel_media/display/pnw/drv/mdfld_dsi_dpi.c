@@ -33,8 +33,6 @@
 #include "psb_irq.h"
 #include "dispmgrnl.h"
 
-extern int boot_mode_flag;
-
 static
 u16 mdfld_dsi_dpi_to_byte_clock_count(int pixel_clock_count,
 		int num_lane, int bpp)
@@ -86,15 +84,9 @@ int mdfld_dsi_dpi_timing_calculation(struct drm_display_mode *mode,
 	dpi_timing->hfp_count = mdfld_dsi_dpi_to_byte_clock_count(pclk_hfp, num_lane, bpp);
 	dpi_timing->hactive_count = mdfld_dsi_dpi_to_byte_clock_count(pclk_hactive, num_lane, bpp);
 
-#if 1	//from intel patch to fix vsync miss issue add by wang.xiaojun3@byd.com for P801_KK4.4_P000388 at 140313
 	dpi_timing->vsync_count = mdfld_dsi_dpi_to_byte_clock_count(pclk_vsync, num_lane, bpp);
 	dpi_timing->vbp_count = mdfld_dsi_dpi_to_byte_clock_count(pclk_vbp, num_lane, bpp);
 	dpi_timing->vfp_count = mdfld_dsi_dpi_to_byte_clock_count(pclk_vfp, num_lane, bpp);
-#else
-	dpi_timing->vsync_count = pclk_vsync;
-	dpi_timing->vbp_count = pclk_vbp;
-	dpi_timing->vfp_count = pclk_vfp;
-#endif
 
 	PSB_DEBUG_ENTRY("DPI timings: %d, %d, %d, %d, %d, %d, %d\n", 
 			dpi_timing->hsync_count, dpi_timing->hbp_count,
@@ -410,11 +402,6 @@ reset_recovery:
 	if (dev_priv->pvr_screen_event_handler)
 		dev_priv->pvr_screen_event_handler(dev, 1);
 
-	if(boot_mode_flag == 1){
-		msleep(90);
-		PSB_DEBUG_WARN("boot up into charger mode\n");
-	}
-
 	if (p_funcs && p_funcs->set_brightness)
 		if (p_funcs->set_brightness(dsi_config, ctx->lastbrightnesslevel))
 			DRM_ERROR("Failed to set panel brightness\n");
@@ -464,8 +451,9 @@ static int __dpi_panel_power_off(struct mdfld_dsi_config *dsi_config,
 		dev_priv->pvr_screen_event_handler(dev, 0);
 
 	/*save the plane informaton, for it will updated*/
-	ctx->dspsurf = dev_priv->init_screen_start;
-	ctx->dsplinoff = dev_priv->init_screen_offset;
+	ctx->dspsurf = REG_READ(regs->dspsurf_reg);
+	ctx->dsplinoff = REG_READ(regs->dsplinoff_reg);
+	ctx->dspsize = REG_READ(regs->dspsize_reg);
 	ctx->pipestat = REG_READ(regs->pipestat_reg);
 	ctx->dspcntr = REG_READ(regs->dspcntr_reg);
 	ctx->dspstride= REG_READ(regs->dspstride_reg);
@@ -510,8 +498,7 @@ static int __dpi_panel_power_off(struct mdfld_dsi_config *dsi_config,
 		if (!retry) {
 			DRM_ERROR("Failed to disable pipe\n");
 			err = -EAGAIN;
-		//remove for P801 KTC panel, remove later after fix the issue wang.xiaojun3@131122
-		//	goto power_off_err;		
+			goto power_off_err;
 		}
 	}
 	/*Disable MIPI port*/

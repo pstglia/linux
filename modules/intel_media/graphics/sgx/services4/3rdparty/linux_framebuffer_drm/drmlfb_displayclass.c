@@ -48,6 +48,20 @@
 #error "SUPPORT_DRI_DRM must be set"
 #endif
 
+/*	ASUS_BSP: Louis +++	*/
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+static bool bootDdsCheck;
+#if defined(CONFIG_EEPROM_PADSTATION)
+extern int checkPadExist(int);
+extern int AX_MicroP_IsP01Connected(void);
+#include <linux/microp_notify.h>
+#include <linux/microp_pin_def.h>
+#include <linux/microp_api.h>
+#endif
+
+#endif
+/*	ASUS_BSP: Louis ---	*/
+
 #define MAXFLIPCOMMANDS 4
 
 struct flip_command {
@@ -149,17 +163,79 @@ static inline void MRSTFBFlipComplete(MRSTLFB_SWAPCHAIN *psSwapChain, MRSTLFB_VS
 		dev_priv->pvr_ops->OSScheduleMISR2();
 }
 
+static int MRSTLFBCopyOverlayBuf(struct drm_device *dev,
+				struct intel_overlay_context *context)
+{
+	void *addr;
+	struct drm_psb_private *dev_priv = psb_priv(dev);
+	int index = dev_priv->overlay_buf_index;
+
+	mutex_lock(&dev_priv->ov_ctrl_lock);
+	addr = dev_priv->overlay_kmap[index].virtual;
+	memcpy(addr, dev_priv->ov_ctrl_blk + context->index,
+			sizeof(struct overlay_ctrl_blk));
+	mutex_unlock(&dev_priv->ov_ctrl_lock);
+
+	return 0;
+}
+
+static u32 MRSTLFBSetupOvadd(struct drm_device *dev,
+			struct intel_overlay_context *context)
+{
+	int ret;
+	struct drm_psb_private *dev_priv = psb_priv(dev);
+	struct ttm_buffer_object *bo;
+	int buf_index = dev_priv->overlay_buf_index;
+	u32 ovadd = 0;
+
+	bo = dev_priv->overlay_backbuf[dev_priv->overlay_buf_index];
+	ret = MRSTLFBCopyOverlayBuf(dev, context);
+	if (ret)
+		return 0;
+
+	ovadd |= context->pipe;
+	ovadd |= 1;
+	ovadd |= bo->offset & 0x0fffffff;
+
+	dev_priv->overlay_buf_index = (buf_index + 1) % OVERLAY_BACKBUF_NUM;
+
+	return ovadd;
+}
+
+static int MRSTLFBWaitOverlayFlip(struct drm_device *dev)
+{
+	struct drm_psb_private *dev_priv = psb_priv(dev);
+	int retry = 80;
+
+	if (BIT31 & PSB_RVDC32(OV_DOVASTA))
+		return 0;
+
+	while (--retry) {
+		if (BIT31 & PSB_RVDC32(OV_DOVASTA))
+			break;
+		usleep_range(500, 600);
+	}
+
+	if (retry == 0) {
+		DRM_DEBUG("%s: timeout wait for overlay flip\n", __func__);
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
 static void MRSTLFBFlipOverlay(MRSTLFB_DEVINFO *psDevInfo,
 			struct intel_overlay_context *psContext, u32 pipe_mask)
 {
 	struct drm_device *dev;
 	struct drm_psb_private *dev_priv;
 	u32 ovadd_reg = OV_OVADD;
+	u32 ovadd;
 	u32 uDspCntr = 0;
+	int overlay_pipe = (psContext->pipe >> 6) & 0x3;
 
 	dev = psDevInfo->psDrmDevice;
-	dev_priv =
-		(struct drm_psb_private *)psDevInfo->psDrmDevice->dev_private;
+	dev_priv = psDevInfo->psDrmDevice->dev_private;
 
 	/* DRM_INFO("%s: flip 0x%x, index %d, pipe 0x%x\n", __func__,
 		psContext->ovadd, psContext->index, psContext->pipe);
@@ -169,16 +245,17 @@ static void MRSTLFBFlipOverlay(MRSTLFB_DEVINFO *psDevInfo,
 	else if (psContext->index > 1)
 		return;
 
-	psContext->ovadd |= psContext->pipe;
-	psContext->ovadd |= 1;
-
-	PSB_WVDC32(psContext->ovadd, ovadd_reg);
+	ovadd = MRSTLFBSetupOvadd(dev, psContext);
+	if (ovadd == 0)
+		return;
+	if (!(is_cmd_mode_panel(dev) && overlay_pipe == 0))
+		MRSTLFBWaitOverlayFlip(dev);
+	PSB_WVDC32(ovadd, ovadd_reg);
 
 	/* If overlay enabled while display plane doesn't,
 	 * disable display plane explicitly */
 	/* A pipe */
-	if (((psContext->pipe >> 6) & 0x3) == 0x00 &&
-		!(pipe_mask & (1 << 0))) {
+	if (overlay_pipe == 0 && !(pipe_mask & (1 << 0))) {
 		/* WA: this is workaround to blank sprite instead of
 		* disabling sprite plane. As we find that it causes
 		* overlay update always to be failure when disable and
@@ -198,8 +275,7 @@ static void MRSTLFBFlipOverlay(MRSTLFB_DEVINFO *psDevInfo,
 			//PSB_WVDC32(0, DSPASURF);
 		}
 #endif
-	} else if (((psContext->pipe >> 6) & 0x3) == 0x2 &&
-		!(pipe_mask & (1 << 1))) {
+	} else if (overlay_pipe == 2 && !(pipe_mask & (1 << 1))) {
 		uDspCntr = PSB_RVDC32(DSPACNTR + 0x1000);
 		if (uDspCntr & DISPLAY_PLANE_ENABLE) {
 			uDspCntr &= ~DISPLAY_PLANE_ENABLE;
@@ -207,8 +283,7 @@ static void MRSTLFBFlipOverlay(MRSTLFB_DEVINFO *psDevInfo,
 			/* Set displayB constant alpha to 0 when disable it */
 			PSB_WVDC32(1 << 31, DSPBSURF + 0xC);
 		}
-	} else if (((psContext->pipe >> 6) & 0x3) == 0x1 &&
-		!(pipe_mask & (1 << 2))) {
+	} else if (overlay_pipe == 1 && !(pipe_mask & (1 << 2))) {
 		uDspCntr = PSB_RVDC32(DSPACNTR + 0x2000);
 		if (uDspCntr & DISPLAY_PLANE_ENABLE) {
 			uDspCntr &= ~DISPLAY_PLANE_ENABLE;
@@ -228,6 +303,16 @@ static void MRSTLFBFlipSprite(MRSTLFB_DEVINFO *psDevInfo,
 	struct drm_psb_private *dev_priv;
 	struct mdfld_dsi_config *dsi_config = 0;
 	struct mdfld_dsi_hw_context *ctx;
+
+/*	ASUS_BSP: Louis +++	*/
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+#if defined(CONFIG_EEPROM_PADSTATION)
+	/*	char *envp_pad_state_1[] = { "PAD_STATE=1", NULL };	*/
+	char *envp_pad_state_0[] = { "PAD_STATE=0", NULL };
+#endif
+#endif
+/*	ASUS_BSP: Louis ---	*/
+
 	u32 reg_offset;
 	int pipe;
 
@@ -257,8 +342,45 @@ static void MRSTLFBFlipSprite(MRSTLFB_DEVINFO *psDevInfo,
 	if ((psContext->update_mask & SPRITE_UPDATE_POSITION))
 		PSB_WVDC32(psContext->pos, DSPAPOS + reg_offset);
 	if ((psContext->update_mask & SPRITE_UPDATE_SIZE)) {
+/*	ASUS_BSP: Louis +++	*/
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+#if defined(CONFIG_EEPROM_PADSTATION)
+		if (!bootDdsCheck) {
+			checkPadExist(0);
+			DRM_INFO("[DISPLAY][DDS] %s: Do checkPadExist(0).\n", __func__);
+			bootDdsCheck = true;
+
+			DRM_INFO("[DISPLAY][DDS] %s: panel_turn_on = %d, AX_MicroP_IsP01Connected() =%d, AX_MicroP_getGPIOOutputPinLevel(OUT_uP_LCD_RST)=%d\n", __func__, panel_turn_on, AX_MicroP_IsP01Connected(), AX_MicroP_getGPIOOutputPinLevel(OUT_uP_LCD_RST));
+
+			if ((panel_turn_on == DDS_PAD) && !AX_MicroP_IsP01Connected()) {
+				DRM_INFO("[DISPLAY][DDS] hpd = 0\n");
+				hpd = 0;
+				DRM_INFO("[DISPLAY][DDS] P01_REMOVE.\n");
+				kobject_uevent_env(&dsi_config->dev->primary->kdev.kobj, KOBJ_CHANGE, envp_pad_state_0);
+			}
+			/*	else if((panel_turn_on == DDS_NT35521) /*&& (AX_MicroP_getGPIOOutputPinLevel(OUT_uP_LCD_RST)==0)){
+				schedule_work(&dev_priv->reset_panel_work);
+			}
+			*/
+		}
+
+		if (panel_id == 0)
+			PSB_WVDC32 ((psContext->size > 0x35501df) ? 0x35501df : psContext->size, DSPASIZE + reg_offset);
+		else
+			PSB_WVDC32 ((psContext->size > 0x4ff031f) ? 0x4ff031f : psContext->size, DSPASIZE + reg_offset);
+#endif
+		if (1) {
+			if (panel_id == 0)
+				PSB_WVDC32 ((psContext->size > 0x35501df) ? 0x35501df : psContext->size, DSPASIZE + reg_offset);
+			else
+				PSB_WVDC32 ((psContext->size > 0x4ff031f) ? 0x4ff031f : psContext->size, DSPASIZE + reg_offset);
+		}
+		PSB_WVDC32(psContext->stride, DSPASTRIDE + reg_offset);
+#else
 		PSB_WVDC32(psContext->size, DSPASIZE + reg_offset);
 		PSB_WVDC32(psContext->stride, DSPASTRIDE + reg_offset);
+#endif
+/*	ASUS_BSP: Louis ---	*/
 	}
 
 	if ((psContext->update_mask & SPRITE_UPDATE_CONTROL)) {
@@ -325,8 +447,15 @@ static void MRSTLFBFlipPrimary(MRSTLFB_DEVINFO *psDevInfo,
 	if ((psContext->update_mask & SPRITE_UPDATE_POSITION))
 		PSB_WVDC32(psContext->pos, DSPAPOS + reg_offset);
 	if ((psContext->update_mask & SPRITE_UPDATE_SIZE)) {
+/*	ASUS_BSP: Louis +++	*/
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+		PSB_WVDC32((panel_id == 0) ? 0x35501df : 0x4ff031f, DSPASIZE + reg_offset);
+		PSB_WVDC32(0xc80, DSPASTRIDE + reg_offset);
+#else
 		PSB_WVDC32(psContext->size, DSPASIZE + reg_offset);
 		PSB_WVDC32(psContext->stride, DSPASTRIDE + reg_offset);
+#endif
+/*	ASUS_BSP: Louis ---	*/
 	}
 
 	if ((psContext->update_mask & SPRITE_UPDATE_CONTROL)) {
@@ -1209,7 +1338,6 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 {
 	MRSTLFB_DEVINFO	*psDevInfo;
 	MRSTLFB_SWAPCHAIN *psSwapChain;
-	struct drm_psb_private *dev_priv = NULL;
 	int i;
 	IMG_UINT32 taskid;
 	struct drm_device *dev;
@@ -1221,13 +1349,6 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 	psDevInfo = (MRSTLFB_DEVINFO*)hDevice;
 	psSwapChain = (MRSTLFB_SWAPCHAIN*)hSwapChain;
 	dev = psDevInfo->psDrmDevice;
-	if (!psDevInfo || !psDevInfo->psDrmDevice)
-		return (PVRSRV_ERROR_INVALID_PARAMS);
-
-	dev_priv =
-		(struct drm_psb_private *)psDevInfo->psDrmDevice->dev_private;
-	if (!dev_priv)
-		return (PVRSRV_ERROR_INVALID_PARAMS);
 
 	mutex_lock(&psDevInfo->sSwapChainMutex);
 
@@ -1244,16 +1365,6 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 
 	if (psDevInfo->ui32SwapChainNum == 0)
 	{
-				/**
-		 * in some cases if sf is killed and the buffer overlay is using is
-		 * unmapped, overlay will be abnormal, here need disable overlay.
-		 */
-		if (ospm_power_using_hw_begin(OSPM_DISPLAY_ISLAND,
-					OSPM_UHB_ONLY_IF_ON)) {
-			PSB_WVDC32(0, OV_OVADD);
-			ospm_power_using_hw_end(OSPM_DISPLAY_ISLAND);
-		}
-
 		if (IS_CTP(dev))
 			DRMLFBFlipBuffer2(psDevInfo, NULL, &psDevInfo->sSystemBuffer);
 		else
@@ -1489,6 +1600,8 @@ static MRST_BOOL MRSTLFBVSyncIHandler(MRSTLFB_DEVINFO *psDevInfo, int iPipe)
 	MRST_BOOL bStatus = MRST_TRUE;
 	unsigned long ulMaxIndex;
 	MRSTLFB_SWAPCHAIN *psSwapChain;
+        struct drm_psb_private *dev_priv;
+        int bhdmiplane_enable = IMG_TRUE;
 
 	mutex_lock(&psDevInfo->sSwapChainMutex);
 
@@ -1497,8 +1610,19 @@ static MRST_BOOL MRSTLFBVSyncIHandler(MRSTLFB_DEVINFO *psDevInfo, int iPipe)
 	if (psSwapChain == NULL)
 		goto ExitUnlock;
 
-	if (psDevInfo->bFlushCommands || psDevInfo->bSuspended || psDevInfo->bLeaveVT)
-		goto ExitUnlock;
+        //if hdmi connect,and hdmi plane disable,not flush commands
+        if(psDevInfo->psDrmDevice){
+                dev_priv =
+                        (struct drm_psb_private *)psDevInfo->psDrmDevice->dev_private;
+
+                if(dev_priv)
+                        bhdmiplane_enable = dev_priv->bhdmi_enable;
+        }
+
+        if ((psDevInfo->bFlushCommands && !(hdmi_state && (bhdmiplane_enable == IMG_FALSE)))
+                || psDevInfo->bSuspended || psDevInfo->bLeaveVT)
+                goto ExitUnlock;
+
 
 	psFlipItem = &psSwapChain->psVSyncFlips[psSwapChain->ulRemoveIndex];
 	ulMaxIndex = psSwapChain->ulSwapChainLength - 1;
@@ -1815,6 +1939,11 @@ static IMG_BOOL ProcessFlip2(IMG_HANDLE hCmdCookie,
 	if (contextlocked)
 		mdfld_dsi_dsr_forbid_locked(dsi_config);
 
+        /*widi play video always use fake vsync in hwc.
+         *video mode panel ,mipi on and have some flip cmd,
+         *but mipi vblank interrupt disable,flip cmd can not
+         * be completed will caused timeout.
+        */
 	if (dev_priv->exit_idle && (dsi_config->type == MDFLD_DSI_ENCODER_DPI))
 		dev_priv->exit_idle(dev, MDFLD_DSR_2D_3D, NULL, true);
 
@@ -1852,8 +1981,18 @@ static IMG_BOOL ProcessFlip2(IMG_HANDLE hCmdCookie,
 	updatePlaneContexts(psSwapChain, psFlipCmd, psPlaneContexts);
 
 #if defined(MRST_USING_INTERRUPTS)
+
+        /*
+        **HDMI plug-in,Play video in OVERLAY_EXTEND mode
+        **MIPI will off,bFlushCommands will be set to 1
+        **pfnPVRSRVCmdComplete will be called immediately
+        **after DRMLFBFlipBuffer2,Video will decode something
+        **to the buffer which is displaying,so abnormal.
+        **In normal mode,pfnPVRSRVCmdComplete will be called
+        **In next vsync if the new buffer is displaying.
+        */
 	if (!drm_psb_3D_vblank || psFlipCmd->ui32SwapInterval == 0 ||
-		psDevInfo->bFlushCommands) {
+		(psDevInfo->bFlushCommands && !(hdmi_state && (dev_priv->bhdmi_enable == IMG_FALSE)))) {
 #endif
 		/* update sprite plane context*/
 		if (DRMLFBFlipBuffer2(

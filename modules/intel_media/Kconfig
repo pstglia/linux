@@ -136,6 +136,27 @@ config R63311_MIPI_VIDEO_MODE
 	bool "support jdi 1920x1080 MIPI panel"
 	default n
 
+config SUPPORT_OTM8018B_MIPI_480X854_DISPLAY
+	bool "Support CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY"
+	depends on DRM_MDFLD || DRM_CTP
+	default n
+	help
+	  xxxxxx
+
+config SUPPORT_DDS_MIPI_SWITCH
+        bool "Support DDS MIPI switch"
+        depends on DRM_MDFLD || DRM_CTP
+        default n
+        help
+          xxxxxx
+
+config SUPPORT_P73L_TWO_LANE
+       bool "Support pf450cl pad with two lane"
+       depends on DRM_MDFLD || DRM_CTP
+       default n
+       help
+         xxxxxx
+
 config SUPPORT_TOSHIBA_MIPI_DISPLAY
 	bool "Support Toshiba TC358762 MIPI Bridge and Toshiba JBT6K84 Panel"
 	depends on DRM_MDFLD
@@ -197,6 +218,22 @@ config SUPPORT_MIPI_H8C7_CMD_DISPLAY
        help
          xxxxxx
 
+if A500CG
+config SUPPORT_MIPI_HX8394_DISPLAY
+       bool "Support Himax HX8394 720x1280 MIPI interface Panel"
+       depends on DRM_MDFLD || DRM_CTP
+       default n
+       help
+         xxxxxx
+
+config SUPPORT_MIPI_ORISE1283A_DISPLAY
+       bool "Support Orise OTM1283A 720x1280 MIPI interface Panel"
+       depends on DRM_MDFLD || DRM_CTP
+       default n
+       help
+         xxxxxx
+endif
+
 config MDFD_VIDEO_ENCODE
 	bool "Support for Medfield Video Encode"
 	depends on DRM_MDFLD || DRM_CTP
@@ -247,24 +284,6 @@ config SUPPORT_GI_MIPI_SONY_COMMAND_MODE_DISPLAY
 	  mode MIPI panel, with
 	  320 x 480 resolution
 	  in portrait mode.
-
-config SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY
-	bool "Support CPT 7 Inch 800x1280 MIPI Video Mode Panel"
-	depends on DRM_MDFLD || DRM_CTP
-	default n
-	help
-	  this is to support CPT 7 inch MIPI interface Panel which is a
-	  800x1280 panel.
-	  say n if the panel is not in use.
-
-config SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY
-	bool "Support CPT 8 Inch 800x1280 MIPI Video Mode Panel"
-	depends on DRM_MDFLD || DRM_CTP
-	default n
-	help
-	  this is to support CPT 8 inch MIPI interface Panel which is a
-	  800x1280 panel.
-	  say n if the panel is not in use.
 
 config GFX_ON_GI
 	tristate "Differentiate platform for specific GFX setting"

@@ -51,6 +51,7 @@ ccflags-y += -DOTM_HDMI_UNIT_TEST
 #enable HDCP
 ccflags-y += -DOTM_HDMI_HDCP_ENABLE
 ccflags-y += -DCONFIG_VIDEO_MRFLD_EC
+ccflags-y += -DCONFIG_SLICE_HEADER_PARSING
 
 ccflags-y += $(include_dirs)
 
@@ -68,7 +69,6 @@ $(DRIVER_NAME)-objs += $(FBDEVDIR)/drmlfb_displayclass.o \
 	$(DISPLAYDIR)/mdfld_csc.o \
 	$(DISPLAYDIR)/psb_pvr_glue.o \
 	$(DISPLAYDIR)/mdfld_dsi_dbi.o \
-	$(DISPLAYDIR)/mdfld_dsi_dpi.o \
 	$(DISPLAYDIR)/mdfld_dsi_output.o \
 	$(DISPLAYDIR)/mdfld_output.o \
 	$(DISPLAYDIR)/auo_sc1_vid.o \
@@ -82,6 +82,15 @@ $(DRIVER_NAME)-objs += $(FBDEVDIR)/drmlfb_displayclass.o \
 	$(DISPLAYDIR)/tc35876x_vid.o \
 	$(DISPLAYDIR)/gi_renesas_cmd.o \
 	$(DISPLAYDIR)/mdfld_hdmi_audio.o \
+
+
+ifeq ($(CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY), y)
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/mdfld_dsi_dpi_pf450.o
+else ifeq ($(CONFIG_A500CG), y)
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/mdfld_dsi_dpi.a500cg.o
+else
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/mdfld_dsi_dpi.o
+endif
 
 ifeq ($(CONFIG_MDFD_VIDEO_DECODE), y)
 $(DRIVER_NAME)-objs += $(ENCODE_DIR)/pnw_topaz.o \
@@ -100,10 +109,13 @@ $(DRIVER_NAME)-objs += $(ENCODE_DIR)/pnw_topaz.o \
 	$(VIDEO_COMMON_DIR)/psb_ttm_placement_user.o
 endif
 
-ifeq ($(CONFIG_SUPPORT_HDMI), y)
+ifneq ($(CONFIG_SUPPORT_HDMI) & $(CONFIG_CTP_DPST),n)
 $(DRIVER_NAME)-objs += $(DISPLAYDIR)/psb_umevents.o \
-	$(DISPLAYDIR)/psb_socket.o \
-	$(OTM_HDMI_SRC)/pil/common/otm_hdmi.o \
+       	$(DISPLAYDIR)/psb_socket.o
+endif
+
+ifeq ($(CONFIG_SUPPORT_HDMI), y)
+$(DRIVER_NAME)-objs += $(OTM_HDMI_SRC)/pil/common/otm_hdmi.o \
 	$(OTM_HDMI_SRC)/pil/common/mode_info.o \
 	$(OTM_HDMI_SRC)/pil/common/hdcp.o \
 	$(OTM_HDMI_SRC)/pil/common/edid.o \
@@ -128,12 +140,23 @@ $(DRIVER_NAME)-objs += $(DISPLAYDIR)/psb_dpst.o \
 	$(DISPLAYDIR)/dispmgrnl.o
 endif
 
+ifeq ($(CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY), y)
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/pf450cl_vid.o
+endif
 ifeq ($(CONFIG_SUPPORT_TMD_MIPI_600X1024_DISPLAY), y)
 $(DRIVER_NAME)-objs += $(DISPLAYDIR)/tmd_6x10_vid.o
 endif
 
 ifeq ($(CONFIG_SUPPORT_MIPI_H8C7_CMD_DISPLAY), y)
 $(DRIVER_NAME)-objs += $(DISPLAYDIR)/h8c7_cmd.o
+endif
+
+ifeq ($(CONFIG_SUPPORT_MIPI_HX8394_DISPLAY), y)
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/hx8394_vid.o
+endif
+
+ifeq ($(CONFIG_SUPPORT_MIPI_ORISE1283A_DISPLAY), y)
+$(DRIVER_NAME)-objs += $(DISPLAYDIR)/orise1283a_vid.o
 endif
 
 ifeq ($(CONFIG_SUPPORT_VB_MIPI_DISPLAY), y)
@@ -144,14 +167,5 @@ ifeq ($(CONFIG_R63311_MIPI_VIDEO_MODE), y)
 $(DRIVER_NAME)-objs += $(DISPLAYDIR)/r63311_vid.o
 endif
 
-ifeq ($(CONFIG_SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY), y)
-	$(DRIVER_NAME)-objs += $(DISPLAYDIR)/cpt_80x128_vid_7inch_lcd.o
-endif
-
-ifeq ($(CONFIG_SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY), y)
-	$(DRIVER_NAME)-objs += $(DISPLAYDIR)/cpt_80x128_vid_8inch_lcd.o \
-	$(DISPLAYDIR)/ktc_80x128_vid_8inch_lcd.o
-endif
-
-obj-m += $(DRIVER_NAME).o
+obj-$(CONFIG_DRM_CTP) += $(DRIVER_NAME).o
 

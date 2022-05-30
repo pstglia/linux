@@ -26,7 +26,6 @@
 #include <linux/spinlock.h>
 #include <drm/drm_pciids.h>
 #include <linux/version.h>
-#include <linux/gpio.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
 #include <asm/intel_scu_pmic.h>
 #else
@@ -44,6 +43,13 @@
 #include "mdfld_csc.h"
 #include "mdfld_dsi_pkg_sender.h"
 #include "mdfld_dsi_dbi.h"
+
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+#include "mdfld_dsi_dpi.h"
+#endif
+//ASUS_BSP: [DDS] ---
+
 #include "pvr_drm_shared.h"
 #include "psb_powermgmt.h"
 
@@ -67,6 +73,19 @@
 #include "img_types.h"
 #include "pvr_bridge.h"
 #include "linkage.h"
+#ifdef CONFIG_A500CG
+#include "mdfld_dsi_dpi.h"
+#endif
+
+#include <linux/HWVersion.h>
+#ifdef CONFIG_A500CG
+extern int Read_LCD_ID(void);
+extern int Read_PROJ_ID(void);
+
+
+u8 panel_name_FW[PANEL_NAME_MAX_LEN+1] = {0};
+static u8 *lcd_unique_id;
+#endif
 
 struct workqueue_struct *te_wq;
 struct workqueue_struct *vsync_wq;
@@ -74,16 +93,12 @@ struct workqueue_struct *vsync_wq;
 #define HDMI_MONITOR_NAME_LENGTH 20
 
 int drm_psb_debug = PSB_D_WARN;
-int drm_psb_enable_cabc = 0;
+int drm_psb_enable_cabc = 1;
 int drm_psb_enable_gamma;
 int drm_psb_enable_color_conversion;
 static int drm_psb_trap_pagefaults;
 
 bool gbdispstatus = true;
-int panel_detect_ID = 0;
-//extern char *saved_command_line;
-//int boot_mode_flag = 0;
-char panel_detect_desc[16];
 
 int drm_psb_disable_vsync = 1;
 int drm_psb_no_fb;
@@ -110,8 +125,22 @@ int csc_setting[6] = {0};
 int gamma_number = 129;
 int csc_number = 6;
 #ifdef CONFIG_CTP_DPST
-int dpst_level = 3;
+int dpst_level = 5;
 #endif
+
+int asus_panel_id = 0x0;
+
+//ASUS_BSP: Louis +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+int panel_id = 0;
+int hpd = 0;
+int panel_turn_on = DDS_NONE;
+#endif
+
+#ifdef CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY
+bool esd_thread_enable = true;
+#endif
+
 int drm_hdmi_hpd_auto;
 int default_hdmi_scaling_mode = DRM_MODE_SCALE_CENTER;
 
@@ -136,19 +165,20 @@ extern struct platform_driver jdi_r63311_lcd_driver;
 extern struct platform_driver tmd_lcd_driver;
 #endif
 
-#ifdef CONFIG_SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY
-extern int intel_scu_ipc_ioread8(u16 addr, u8 *data);
-extern struct platform_driver cpt_8_inch_driver;
-extern struct platform_driver ktc_8_inch_driver;
+#ifdef CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY
+extern struct platform_driver pf450cl_vid_lcd_driver;
 #endif
 
-#ifdef CONFIG_SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY
-extern struct platform_driver cpt_7_inch_driver;
+#ifdef CONFIG_SUPPORT_MIPI_HX8394_DISPLAY
+extern struct platform_driver hx8394_lcd_driver;
+#endif
+
+#ifdef CONFIG_SUPPORT_MIPI_ORISE1283A_DISPLAY
+extern struct platform_driver orise1283a_lcd_driver;
 #endif
 
 static int psb_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 
-MODULE_PARM_DESC(panel_name, "Print the panel module name");
 MODULE_PARM_DESC(debug, "Enable debug output");
 MODULE_PARM_DESC(no_fb, "Disable FBdev");
 MODULE_PARM_DESC(trap_pagefaults, "Error and reset on MMU pagefaults");
@@ -178,7 +208,15 @@ MODULE_PARM_DESC(dpst_level, "dpst aggressive level: 0~5");
 MODULE_PARM_DESC(hdmi_hpd_auto, "HDMI hot-plug auto test flag");
 MODULE_PARM_DESC(default_hdmi_scaling_mode, "Default HDMI scaling mode");
 
-module_param_string(panel_name, panel_detect_desc, 20, 0600);
+MODULE_PARM_DESC(asus_panel_id, "ASUS panel ID");
+
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+MODULE_PARM_DESC(panel_id, "panel_id");
+MODULE_PARM_DESC(hpd, "hpd");
+#endif
+//ASUS_BSP: [DDS] ---
+
 module_param_named(debug, drm_psb_debug, int, 0600);
 module_param_named(psb_enable_cabc, drm_psb_enable_cabc, int, 0600);
 module_param_named(enable_color_conversion, drm_psb_enable_color_conversion, int, 0600);
@@ -213,6 +251,18 @@ module_param_named(dpst_level, dpst_level, int, 0600);
 module_param_named(hdmi_hpd_auto, drm_hdmi_hpd_auto, int, 0600);
 module_param_named(default_hdmi_scaling_mode, default_hdmi_scaling_mode,
 					int, 0600);
+module_param_named(asus_panel_id, asus_panel_id, int, 0644);
+
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+module_param_named(panel_id, panel_id, int, 0644);
+module_param_named(hpd, hpd, int, 0644);
+module_param_named(panel_turn_on, panel_turn_on, int, 0644);
+#endif
+//ASUS_BSP: [DDS] ---
+#ifdef CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY
+module_param_named(esd_thread_enable, esd_thread_enable, bool, 0644);
+#endif
 
 #ifndef MODULE
 /* Make ospm configurable via cmdline firstly, and others can be enabled if needed. */
@@ -402,6 +452,14 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 	DRM_IOWR(DRM_PSB_VSYNC_SET + DRM_COMMAND_BASE,		\
 			struct drm_psb_vsync_set_arg)
 
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+#define DRM_IOCTL_PSB_PANEL_SWITCH \
+	DRM_IOWR(DRM_PSB_PANEL_SWITCH + DRM_COMMAND_BASE,		\
+			uint32_t)
+#endif
+//ASUS_BSP: [DDS] ---
+
 /* GET DC INFO IOCTL */
 #define DRM_IOCTL_PSB_GET_DC_INFO \
 	DRM_IOR(DRM_PSB_GET_DC_INFO + DRM_COMMAND_BASE,		\
@@ -514,6 +572,14 @@ static int psb_stolen_memory_ioctl(struct drm_device *dev, void *data,
 				   struct drm_file *file_priv);
 static int psb_vsync_set_ioctl(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv);
+
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+static int psb_panel_switch_ioctl(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv);
+#endif
+//ASUS_BSP: [DDS] ---
+
 static int psb_get_dc_info_ioctl(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv);
 static int psb_register_rw_ioctl(struct drm_device *dev, void *data,
@@ -751,6 +817,11 @@ static struct drm_ioctl_desc psb_ioctls[] = {
 	PSB_IOCTL_DEF(DRM_IOCTL_PSB_SET_CSC, psb_set_csc_ioctl, DRM_AUTH),
 	PSB_IOCTL_DEF(DRM_IOCTL_PSB_VSYNC_SET, psb_vsync_set_ioctl,
 	DRM_AUTH | DRM_UNLOCKED),
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+	PSB_IOCTL_DEF(DRM_IOCTL_PSB_PANEL_SWITCH, psb_panel_switch_ioctl,DRM_AUTH | DRM_UNLOCKED),
+#endif
+//ASUS_BSP: [DDS] ---
 	PSB_IOCTL_DEF(DRM_IOCTL_PSB_GET_DC_INFO, psb_get_dc_info_ioctl,
 	DRM_AUTH | DRM_UNLOCKED),
 
@@ -1054,7 +1125,6 @@ static bool intel_mid_get_vbt_data(struct drm_psb_private *dev_priv)
 	struct pci_dev *pci_gfx_root = pci_get_bus_and_slot(0, PCI_DEVFN(2, 0));
 	mdfld_dsi_encoder_t mipi_mode;
 	int ret = 0, len = 0;
-	u8 panel_detect_gpio1hv1 = 0;
 	struct platform_device *pdev;
 
 	PSB_DEBUG_ENTRY("\n");
@@ -1114,8 +1184,11 @@ static bool intel_mid_get_vbt_data(struct drm_psb_private *dev_priv)
 			DRM_ERROR("Invalid desc\n");
 			return false;
 		}
-
+#ifdef CONFIG_A500CG
+		strncpy(panel_name_FW, panel_desc, PANEL_NAME_MAX_LEN);
+#else
 		strncpy(panel_name, panel_desc, PANEL_NAME_MAX_LEN);
+#endif
 
 		mipi_mode =
 		((struct gct_r11_panel_desc *)panel_desc)->display.mode ? \
@@ -1133,8 +1206,11 @@ static bool intel_mid_get_vbt_data(struct drm_psb_private *dev_priv)
 			DRM_ERROR("Invalid desc\n");
 			return false;
 		}
-
+#ifdef CONFIG_A500CG
+		strncpy(panel_name_FW, panel_desc, PANEL_NAME_MAX_LEN);
+#else
 		strncpy(panel_name, panel_desc, PANEL_NAME_MAX_LEN);
+#endif
 
 		mipi_mode =
 		((struct gct_r20_panel_desc *)panel_desc)->panel_mode.mode ?\
@@ -1145,45 +1221,66 @@ static bool intel_mid_get_vbt_data(struct drm_psb_private *dev_priv)
 		pVBT->size = 0;
 		return false;
 	}
-	
-//copy from JB4.2 by wang.xiaojun3@byd.com at 2013.11.01
-#ifdef CONFIG_SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY
-	gpio_request(175, "ldo_display");
-	gpio_direction_output(175, 1);
-	msleep(100);
-	ret = intel_scu_ipc_ioread8(0x7B, &panel_detect_gpio1hv1);
-	PSB_DEBUG_WARN("panel detect 0x7B = 0x%x\n", panel_detect_gpio1hv1);
-
-	if(panel_detect_gpio1hv1 == 0x01)
-	{
-		panel_detect_ID = 1;
-		strncpy(panel_detect_desc, "KTC 8 inch VID", PANEL_NAME_MAX_LEN);
-		strncpy(panel_name, "KTC 8 inch VID", PANEL_NAME_MAX_LEN);
-	}else{
-		strncpy(panel_detect_desc, "CPT 8 inch VID", PANEL_NAME_MAX_LEN);
-		strncpy(panel_name, "CPT 8 inch VID", PANEL_NAME_MAX_LEN);
-	}
-
-	mipi_mode = MDFLD_DSI_ENCODER_DPI;
-	
-#elif CONFIG_SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY
-	strncpy(panel_detect_desc, "CPT 7 inch VID", PANEL_NAME_MAX_LEN);
-	strncpy(panel_name, "CPT 7 inch VID", PANEL_NAME_MAX_LEN);
-	mipi_mode = MDFLD_DSI_ENCODER_DPI;
-
-//	char *boot_sr = strstr(saved_command_line, "androidboot.mode=charger");
-//	if(boot_sr)
-//		boot_mode_flag = 1;
-#endif
-
+#ifdef CONFIG_A500CG
+	len = strnlen(panel_name_FW, PANEL_NAME_MAX_LEN);
+#else
 	len = strnlen(panel_name, PANEL_NAME_MAX_LEN);
+#endif
 	if (len) {
+#ifdef CONFIG_A500CG
+		strncpy(dev_priv->panel_info.name, panel_name_FW, len);
+#else
 		strncpy(dev_priv->panel_info.name, panel_name, len);
+#endif
 		dev_priv->panel_info.mode = mipi_mode;
 	} else {
 		DRM_ERROR("%s: detect panel info from gct error\n",
 				__func__);
 		return false;
+	}
+
+	DRM_INFO("%s: FW panel name: %s, mipi_mode = %d !\n", __func__, panel_name_FW, mipi_mode);
+
+	switch(Read_PROJ_ID()){
+		case PROJ_ID_A502CG:
+			if (Read_LCD_ID() == A502CG_LCD_ID_TXD) {
+				printk("[DISP] DriverIC : ORISE9605A, Panel : TXD device registered!\n");
+				strncpy(panel_name, "OTM9605A", strlen("OTM9605A"));
+				mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			} else if (Read_LCD_ID() == A502CG_LCD_ID_OFILM) {
+				printk("[DISP] DriverIC : ORISE8018B, Panel : OFILM device registered!\n");
+				strncpy(panel_name, panel_name_FW, strlen("OTM8018B"));
+				mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			} else {
+				printk("[DISP] DriverIC : ORISE8018B, Panel : GIS device registered!\n");
+				strncpy(panel_name, panel_name_FW, strlen("OTM8018B"));
+				mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			}
+			break;
+		case PROJ_ID_A600CG:
+		case PROJ_ID_A601CG:
+			printk("[DISP] DriverIC : ORISE1283A device registered!\n");
+			strncpy(panel_name, panel_name_FW, strlen("ORISE1283A"));
+			mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			break;
+		default:
+			if (Read_LCD_ID() == LCD_ID_TM) {
+				printk("[DISP] DriverIC : HX8394 SR device registered!\n");
+				strncpy(panel_name, panel_name_FW, strlen("HX8394"));
+				mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			} else {
+				printk("[DISP] DriverIC : ORISE1283A device registered!\n");
+				strncpy(panel_name, panel_name_FW, strlen("ORISE1283A"));
+				mipi_mode = MDFLD_DSI_ENCODER_DPI;
+			}
+		}
+
+	if (strcmp(panel_name_FW, panel_name) == 0) {
+		lcd_unique_id = "ffffffff";
+		DRM_INFO("Unique ID : NONE\n");
+	} else {
+		lcd_unique_id = panel_name_FW+strlen(panel_name);
+		DRM_INFO("Unique ID : %s\n", lcd_unique_id);
 	}
 
 	pdev = platform_device_alloc(panel_name, -1);
@@ -1355,6 +1452,70 @@ out_err:
 	return ret;
 }
 
+static void mdfld_free_overlay_backbuf(struct drm_device *dev)
+{
+	struct drm_psb_private *dev_priv = psb_priv(dev);
+	int i;
+
+	for (i = 0; i < OVERLAY_BACKBUF_NUM; i++) {
+		if (dev_priv->overlay_backbuf[i]) {
+			ttm_bo_kunmap(&dev_priv->overlay_kmap[i]);
+			ttm_bo_unref(&dev_priv->overlay_backbuf[i]);
+		}
+	}
+}
+
+static int mdfld_init_overlay_backbuf(struct drm_device *dev)
+{
+	struct ttm_buffer_object *overlay_buf;
+	struct drm_psb_private *dev_priv = psb_priv(dev);
+	struct ttm_bo_device *bdev = &dev_priv->bdev;
+	int i, ret;
+
+	for (i = 0; i < OVERLAY_BACKBUF_NUM; i++) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0))
+		ret = ttm_buffer_object_create(bdev, 4096, ttm_bo_type_kernel,
+				TTM_PL_FLAG_TT | TTM_PL_FLAG_WC |
+				TTM_PL_FLAG_NO_EVICT,
+				16, 0, 0, NULL, &overlay_buf);
+#else
+		ret = ttm_buffer_object_create(bdev, 4096, ttm_bo_type_kernel,
+				TTM_PL_FLAG_TT | TTM_PL_FLAG_WC |
+				TTM_PL_FLAG_NO_EVICT,
+				16, 0, NULL, &overlay_buf);
+#endif
+
+		if (ret < 0) {
+			DRM_ERROR("failed to alloc back buf %d, ret:%d\n",
+				  i, ret);
+			goto fail;
+		}
+
+		DRM_INFO("overlay backbuf:%d gpu offset:%#lx\n",
+				i, overlay_buf->offset);
+
+		ret = ttm_bo_kmap(overlay_buf, 0, overlay_buf->num_pages,
+					&dev_priv->overlay_kmap[i]);
+		if (ret) {
+			DRM_ERROR("fail to map overlay buf %d\n", i);
+			ttm_bo_unref(&overlay_buf);
+			goto fail;
+		}
+		dev_priv->overlay_backbuf[i] = overlay_buf;
+	}
+
+	mutex_init(&dev_priv->ov_ctrl_lock);
+	dev_priv->ov_ctrl_blk = kzalloc(sizeof(struct overlay_ctrl_blk) *
+					INTEL_OVERLAY_PLANE_NUM, GFP_KERNEL);
+	if (!dev_priv->ov_ctrl_blk)
+		goto fail;
+
+	return 0;
+fail:
+	mdfld_free_overlay_backbuf(dev);
+	return ret;
+}
+
 static int psb_driver_unload(struct drm_device *dev)
 {
 	struct drm_psb_private *dev_priv =
@@ -1373,6 +1534,8 @@ static int psb_driver_unload(struct drm_device *dev)
 
 	destroy_workqueue(te_wq);
 	destroy_workqueue(vsync_wq);
+	mdfld_free_overlay_backbuf(dev);
+	kfree(dev_priv->ov_ctrl_blk);
 
 	if (dev_priv) {
 		/* psb_watchdog_takedown(dev_priv); */
@@ -1465,7 +1628,6 @@ static int psb_driver_unload(struct drm_device *dev)
 
 	return 0;
 }
-
 
 static int psb_driver_load(struct drm_device *dev, unsigned long chipset)
 {
@@ -1803,8 +1965,15 @@ static int psb_driver_load(struct drm_device *dev, unsigned long chipset)
 			pr_err(": unable to create TE workqueue\n");
 			goto out_err;
 		}
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+		INIT_WORK(&dev_priv->reset_panel_work,
+				mdfld_reset_same_dpi_panel_work);
+#else
 		INIT_WORK(&dev_priv->reset_panel_work,
 				mdfld_reset_panel_handler_work);
+#endif
+//ASUS_BSP: [DDS] ---
 
 		INIT_WORK(&dev_priv->vsync_event_work, mdfld_vsync_event_work);
 
@@ -1828,6 +1997,8 @@ static int psb_driver_load(struct drm_device *dev, unsigned long chipset)
 #ifdef CONFIG_SUPPORT_HDMI
 	INIT_WORK(&dev_priv->hdmi_audio_wq, hdmi_do_audio_wq);
 #endif
+
+	mdfld_init_overlay_backbuf(dev);
 
 	/*Intel drm driver load is done, continue doing pvr load*/
 	DRM_DEBUG("Pvr driver load\n");
@@ -2398,6 +2569,13 @@ static int psb_set_csc_ioctl(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
 {
     struct drm_psb_csc_matrix *csc_matrix = data;
+#ifdef CONFIG_A500CG
+	if (!drm_psb_enable_color_conversion) {
+		REG_WRITE(PIPEACONF, (REG_READ(PIPEACONF) & (~BIT20)));
+	} else
+		REG_WRITE(PIPEACONF, (REG_READ(PIPEACONF) | BIT20));
+
+#endif
     csc_program_DC(dev, csc_matrix->matrix, csc_matrix->pipe);
     return 0;
 }
@@ -2981,7 +3159,7 @@ static void overlay_wait_flip(struct drm_device *dev)
 
 fliped:
 	if (!retry)
-		DRM_ERROR("OVADD flip timeout!\n");
+		DRM_DEBUG("OVADD flip timeout!\n");
 }
 
 /*wait for vblank*/
@@ -3143,6 +3321,13 @@ static int psb_display_reg_dump(struct drm_device *dev)
 	/* DSI PLL */
 	printk(KERN_INFO "[DISPLAY REG DUMP] DSI PLL REG\n\n");
 	psb_register_dump(dev, 0xf010, 0xf020);
+#ifdef CONFIG_A500CG
+	printk(KERN_INFO "\n");
+
+	/* GAMMA LUT REGISTER */
+	printk(KERN_INFO "[DISPLAY REG DUMP] GAMMA LUT\n\n");
+	psb_register_dump(dev, 0xa000, 0xa200);
+#endif
 	printk(KERN_INFO "\n");
 
 	/* MIPI A REGISTER */
@@ -3270,9 +3455,9 @@ void psb_flip_abnormal_debug_info(struct drm_device *dev)
 		interval = cpu_clock(0) -
 			dev_priv->vsync_te_irq_ts[pipe];
 		nanosec_rem = do_div(interval, 1000000000);
-		if (nanosec_rem > 200000000) {
-			DRM_INFO("pipe %d vsync te missing %dms !\n\n",
-				 pipe, nanosec_rem/1000000);
+		if (interval > 0 || nanosec_rem > 200000000) {
+			DRM_INFO("pipe %d vsync te missing %lldms !\n\n",
+				 pipe, interval * 1000 + nanosec_rem/1000000);
 			dev_priv->vsync_te_working[pipe] = false;
 			if (pipe == 0)
 				atomic_set(&dev_priv->mipi_flip_abnormal, 1);
@@ -3307,6 +3492,30 @@ static int psb_get_dc_info_ioctl(struct drm_device *dev, void *data,
 
 	return 0;
 }
+
+//ASUS_BSP: [DDS] +++
+#ifdef CONFIG_SUPPORT_DDS_MIPI_SWITCH
+static int psb_panel_switch_ioctl(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	uint32_t *connected = data;
+	struct drm_psb_private *dev_priv =
+		(struct drm_psb_private *) dev->dev_private;
+
+	DRM_INFO("[DISPLAY] [DDS] %s: Enter, connected =%d\n", __func__, *connected);
+
+	//if(*connected){
+	//	panel_id = 1; //800x1280
+	//}
+	//else{
+	//	panel_id = 0; //480x800
+	//}
+	//printk("psb_panel_switch_ioctl : panel_id = %d\n",panel_id);
+	mdfld_reset_dpi_panel(dev_priv, *connected);
+	return 0;
+}
+#endif
+//ASUS_BSP: [DDS] ---
 
 static int psb_vsync_set_ioctl(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
@@ -3354,10 +3563,17 @@ static int psb_vsync_set_ioctl(struct drm_device *dev, void *data,
 					    (intel_vblank_count(dev, pipe) !=
 					     vbl_count),
 					    3 * DRM_HZ);
-
+#ifndef CONFIG_A500CG
 				if (!ret)
 					DRM_ERROR("Pipe %d vsync time out\n",
 							pipe);
+#else
+				if (!ret) {
+					DRM_ERROR("Pipe %d vsync time out\n",
+							pipe);
+					mdfld_reset_dpi_panel(dev_priv);
+				}
+#endif
 			}
 
 			getrawmonotonic(&now);
@@ -3386,8 +3602,11 @@ static int psb_vsync_set_ioctl(struct drm_device *dev, void *data,
 				psb_fp->dsr_blocked = true;
 
 				if (get_panel_mode(dev) ==
-						MDFLD_DSI_ENCODER_DPI)
+						MDFLD_DSI_ENCODER_DPI) {
 					psb_enable_vblank(dev, pipe);
+					dev_priv->vblank_disable_cnt = 0;
+					dev_priv->vsync_enabled = true;
+				}
 				break;
 			case 1:
 				psb_enable_vblank(dev, pipe);
@@ -3402,8 +3621,14 @@ static int psb_vsync_set_ioctl(struct drm_device *dev, void *data,
 			case 2:
 				psb_fp = psb_fpriv(file_priv);
 				if (get_panel_mode(dev) ==
-						MDFLD_DSI_ENCODER_DPI)
-					psb_disable_vblank(dev, pipe);
+						MDFLD_DSI_ENCODER_DPI) {
+					/* Do not disable vblank immediately,
+					 * we may have pending flip item,
+					 * and flip watchdog may be fired
+					 * mistakenly.
+					 */
+					dev_priv->vsync_enabled = false;
+				}
 
 				mdfld_dsi_dsr_allow(dsi_config);
 				psb_fp->dsr_blocked = false;
@@ -3564,6 +3789,18 @@ static int psb_register_rw_ioctl(struct drm_device *dev, void *data,
 			if (arg->display_read_mask & REGRWBITS_DISPLAY_ALL)
 				psb_display_reg_dump(dev);
 		}
+	}
+
+	if (arg->overlay_write_mask == OVSTATUS_REGRBIT_OVR_UPDT ) {
+		int index = arg->overlay.backbuf_index;
+
+		mutex_lock(&dev_priv->ov_ctrl_lock);
+		ret = copy_from_user(dev_priv->ov_ctrl_blk + index,
+				(void __user *)arg->overlay.backbuf_addr,
+				sizeof(struct overlay_ctrl_blk));
+		mutex_unlock(&dev_priv->ov_ctrl_lock);
+		mutex_unlock(&dev_priv->overlay_lock);
+		return ret;
 	}
 
 	if (arg->overlay_write_mask != 0) {
@@ -4606,13 +4843,13 @@ int gpio_control_write(struct file *file, const char *buffer,
 	}
 	return count;
 }
-#endif
 
 static const struct file_operations psb_gpio_proc_fops = {
        .owner = THIS_MODULE,
        .read = gpio_control_read,
        .write = gpio_control_write,
 };
+#endif
 
 static const struct file_operations psb_ospm_proc_fops = {
        .owner = THIS_MODULE,
@@ -5000,9 +5237,119 @@ static __init int parse_hdmi_edid(char *arg)
 early_param("hdmi_edid", parse_hdmi_edid);
 #endif
 
+#ifdef CONFIG_CTP_DPST
+static int dpst_level_read(struct file *file, char __user *buffer,
+				    size_t count, loff_t *ppos)
+{
+	int len = 0;
+	ssize_t ret = 0;
+	char *buff;
+
+	buff = kmalloc(100, GFP_KERNEL);
+	if(!buff)
+		return -ENOMEM;
+
+	len += sprintf(buff + len, "%d\n", dpst_level);
+	ret = simple_read_from_buffer(buffer,count,ppos,buff,len);
+	kfree(buff);
+
+	return ret;
+}
+static int dpst_level_write(struct file *file, const char *buffer,
+			  size_t count, loff_t *ppos)
+{
+	dpst_level = buffer[0] - '0';
+	printk("DPST level write: %d\n", dpst_level);
+
+	return count;
+}
+#endif
+
+#ifdef CONFIG_A500CG
+static int panel_id_read(struct file *file, char __user *buffer,
+				    size_t count, loff_t *ppos)
+{
+	int len = 0;
+	int lcd_id;
+	ssize_t ret = 0;
+	char *buff;
+
+	buff = kmalloc(100, GFP_KERNEL);
+	if(!buff)
+		return -ENOMEM;
+
+	lcd_id = Read_LCD_ID();
+
+	len += sprintf(buff + len, "%d\n", lcd_id);
+	ret = simple_read_from_buffer(buffer,count,ppos,buff,len);
+	kfree(buff);
+
+	return ret;
+}
+static int panel_id_write(struct file *file, const char *buffer,
+			  size_t count, loff_t *ppos)
+{
+	return 0;
+}
+
+static int lcd_unique_id_read(struct file *file, char __user *buffer,
+				    size_t count, loff_t *ppos)
+{
+	int len = 0;
+	ssize_t ret = 0;
+	char *buff;
+
+	buff = kmalloc(100, GFP_KERNEL);
+	if(!buff)
+		return -ENOMEM;
+
+	len += sprintf(buff + len, "%s\n", lcd_unique_id);
+	ret = simple_read_from_buffer(buffer,count,ppos,buff,len);
+	kfree(buff);
+
+	return ret;
+}
+static int lcd_unique_id_write(struct file *file, const char *buffer,
+			  size_t count, loff_t *ppos)
+{
+	return 0;
+}
+#endif
+
+
+#ifdef CONFIG_CTP_DPST
+static const struct file_operations psb_dpst_proc_fops = {
+       .owner = THIS_MODULE,
+       .read = dpst_level_read,
+       .write = dpst_level_write,
+ };
+#endif
+
+
+#ifdef CONFIG_A500CG
+static const struct file_operations psb_panel_id_proc_fops = {
+       .owner = THIS_MODULE,
+       .read = panel_id_read,
+       .write = panel_id_write,
+ };
+
+static const struct file_operations psb_lcd_unique_id_proc_fops = {
+       .owner = THIS_MODULE,
+       .read = lcd_unique_id_read,
+       .write = lcd_unique_id_write,
+ };
+#endif
+
 static int __init psb_init(void)
 {
 	int ret;
+#ifdef CONFIG_CTP_DPST
+	struct proc_dir_entry *dpst_levels;
+#endif
+#ifdef CONFIG_A500CG
+	struct proc_dir_entry *lcd_type;
+	struct proc_dir_entry *lcd_unique_id;
+#endif
 
 #if defined(MODULE) && defined(CONFIG_NET)
 #ifdef CONFIG_SUPPORT_HDMI
@@ -5039,6 +5386,20 @@ static int __init psb_init(void)
 	}
 #endif
 
+#ifdef CONFIG_SUPPORT_MIPI_HX8394_DISPLAY
+	ret = platform_driver_register(&hx8394_lcd_driver);
+	if (ret != 0) {
+		return ret;
+	}
+#endif
+
+#ifdef CONFIG_SUPPORT_MIPI_ORISE1283A_DISPLAY
+	ret = platform_driver_register(&orise1283a_lcd_driver);
+	if (ret != 0) {
+		return ret;
+	}
+#endif
+
 #ifdef CONFIG_SUPPORT_VB_MIPI_DISPLAY
 	ret = platform_driver_register(&vb_lcd_driver);
 	if (ret != 0) {
@@ -5057,15 +5418,37 @@ static int __init psb_init(void)
 	ret = platform_driver_register(&tmd_lcd_driver);
 #endif
 
-#ifdef CONFIG_SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY
-	ret = platform_driver_register(&cpt_8_inch_driver);
-	ret = platform_driver_register(&ktc_8_inch_driver);
+#ifdef CONFIG_SUPPORT_OTM8018B_MIPI_480X854_DISPLAY
+    ret = platform_driver_register(&pf450cl_vid_lcd_driver);
 #endif
 
-#ifdef CONFIG_SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY
-	ret = platform_driver_register(&cpt_7_inch_driver);
+
+#ifdef CONFIG_A500CG
+/*
+/* Create the display related file node in proc
+*/
+
+#ifdef CONFIG_CTP_DPST
+	dpst_levels = proc_create(DPST_LEVEL_PROC_ENTRY, 0644, NULL, &psb_dpst_proc_fops);
+	if (!dpst_levels) {
+		DRM_ERROR("Unable to create %s\n", DPST_LEVEL_PROC_ENTRY);
+		return -EINVAL;
+	}
 #endif
 
+	lcd_type = proc_create(PANEL_ID_PROC_ENTRY, 0444, NULL, &psb_panel_id_proc_fops);
+	if (!lcd_type) {
+		DRM_ERROR("Unable to create %s\n", PANEL_ID_PROC_ENTRY);
+		return -EINVAL;
+	}
+
+	lcd_unique_id = proc_create(LCD_UNIQUE_ID_PROC_ENTRY, 0444, NULL, &psb_lcd_unique_id_proc_fops);
+	if (!lcd_unique_id) {
+		DRM_ERROR("Unable to create %s\n", LCD_UNIQUE_ID_PROC_ENTRY);
+		return -EINVAL;
+	}
+
+#endif
 	return ret;
 }
 
