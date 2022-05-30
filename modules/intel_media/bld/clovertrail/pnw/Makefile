@@ -167,5 +167,14 @@ ifeq ($(CONFIG_R63311_MIPI_VIDEO_MODE), y)
 $(DRIVER_NAME)-objs += $(DISPLAYDIR)/r63311_vid.o
 endif
 
+ifeq ($(CONFIG_SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY), y)
+        $(DRIVER_NAME)-objs += $(DISPLAYDIR)/cpt_80x128_vid_7inch_lcd.o
+endif
+
+ifeq ($(CONFIG_SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY), y)
+        $(DRIVER_NAME)-objs += $(DISPLAYDIR)/cpt_80x128_vid_8inch_lcd.o \
+        $(DISPLAYDIR)/ktc_80x128_vid_8inch_lcd.o
+endif
+
 obj-$(CONFIG_DRM_CTP) += $(DRIVER_NAME).o
 

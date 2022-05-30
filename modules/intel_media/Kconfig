@@ -373,6 +373,24 @@ config MID_DSI_DSR
 	help
 	  Choose this option if you have a Type1 MIPI panel.
 
+config SUPPORT_MIPI_CPT_7_INCH_VID_DISPLAY
+	bool "Support CPT 7 Inch 800x1280 MIPI Video Mode Panel"
+	depends on DRM_MDFLD || DRM_CTP
+	default n
+	help
+	  this is to support CPT 7 inch MIPI interface Panel which is a
+	  800x1280 panel.
+	  say n if the panel is not in use.
+
+config SUPPORT_MIPI_CPT_8_INCH_VID_DISPLAY
+	bool "Support CPT 8 Inch 800x1280 MIPI Video Mode Panel"
+	depends on DRM_MDFLD || DRM_CTP
+	default n
+	help
+	  this is to support CPT 8 inch MIPI interface Panel which is a
+	  800x1280 panel.
+	  say n if the panel is not in use.
+
 config MID_DSI_DPU
 	bool "Support DSI Display Partial Update"
 	depends on DRM_INTEL_HANDSET
