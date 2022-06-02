@@ -20,6 +20,8 @@
         zcat $OUT/ramdisk.img | cpio -i
         rm lib/modules/*.ko
         find ../out/target/product/kernel_modules/lib/modules/3.10.20*/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
+        # Override some generated modules by vendor modules...
+        find ../vendor_modules/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
 	for arq in $(ls lib/modules/*.ko);do strip -d $arq;done
         for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
         # Re-sign drivers after strip

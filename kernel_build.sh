@@ -52,6 +52,9 @@ KERNEL_SRC_DIR=$TOP/kernel/
 
 init_variables() {
 
+    # Ensure no extra signs are used on generated version
+    export LOCALVERSION=""
+
     if [ -z "${TARGET_TOOLS_PREFIX}" ]; then
         echo >&6 "Warning: TARGET_TOOLS_PREFIX was not set."
         TARGET_TOOLS_PREFIX="$TOP/prebuilts/gcc/${_host_os}-x86/x86/i686-linux-android-4.7/bin/i686-linux-android-"
@@ -445,6 +448,8 @@ main() {
         zcat $OUT/ramdisk.img | cpio -i
         rm lib/modules/*.ko
         find ../out/target/product/kernel_modules/lib/modules/3.10.20*/kernel/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
+	# Override some generated modules by vendor modules...
+	find ../vendor_modules/ -type f -name "*.ko" -exec cp {} lib/modules/ \;
 cp /home/slackware/paulo/ANDROID/FONTES/LINEAGE/device/dell/P801_NoModem/debuglog.sh ./sbin
 	for arq in $(ls lib/modules/*.ko);do strip -d $arq;done
 	for arq in $(ls lib/modules/*.ko);do chmod 644 $arq;done
