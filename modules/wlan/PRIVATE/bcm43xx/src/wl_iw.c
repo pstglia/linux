@@ -164,6 +164,8 @@ typedef struct iscan_info {
 	iscan_buf_t * list_hdr;
 	iscan_buf_t * list_cur;
 
+	struct task_struct *kthread;
+
 	/* Thread to work on iscan */
 	long sysioc_pid;
 	struct semaphore sysioc_sem;
@@ -3795,6 +3797,7 @@ wl_iw_attach(struct net_device *dev, void * dhdp)
 	if (!iscan)
 		return -ENOMEM;
 	memset(iscan, 0, sizeof(iscan_info_t));
+	iscan->kthread = NULL;
 	iscan->sysioc_pid = -1;
 	/* we only care about main interface so save a global here */
 	g_iscan = iscan;
@@ -3810,7 +3813,8 @@ wl_iw_attach(struct net_device *dev, void * dhdp)
 
 	sema_init(&iscan->sysioc_sem, 0);
 	init_completion(&iscan->sysioc_exited);
-	iscan->sysioc_pid = kthread_run(_iscan_sysioc_thread, iscan, "wl_iw_attach");
+	iscan->kthread = kthread_run(_iscan_sysioc_thread, iscan, "iscan_sysioc");
+	iscan->sysioc_pid = iscan->kthread->pid;
 	if (iscan->sysioc_pid < 0)
 		return -ENOMEM;
 	return 0;
