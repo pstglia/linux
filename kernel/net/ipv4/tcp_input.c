@@ -98,6 +98,7 @@ int sysctl_tcp_thin_dupack __read_mostly;
 
 int sysctl_tcp_moderate_rcvbuf __read_mostly = 1;
 int sysctl_tcp_early_retrans __read_mostly = 3;
+int sysctl_tcp_default_init_rwnd __read_mostly = TCP_DEFAULT_INIT_RCVWND;
 
 #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
 #define FLAG_WIN_UPDATE		0x02 /* Incoming ACK was a window update.	*/
@@ -366,8 +367,9 @@ static void tcp_fixup_rcvbuf(struct sock *sk)
 
 	rcvmem *= icwnd;
 
-	if (sk->sk_rcvbuf < rcvmem)
-		sk->sk_rcvbuf = min(rcvmem, sysctl_tcp_rmem[2]);
+	if (sk->sk_rcvbuf < sysctl_tcp_default_init_rwnd * rcvmem)
+		sk->sk_rcvbuf = min(sysctl_tcp_default_init_rwnd * rcvmem,
+				    sysctl_tcp_rmem[2]);
 }
 
 /* 4. Try to fixup all. It is made immediately after connection enters
