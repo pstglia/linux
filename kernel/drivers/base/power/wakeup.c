@@ -19,6 +19,8 @@
 
 #include "power.h"
 
+static void wakeup_source_deactivate(struct wakeup_source *ws);
+
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
  * if wakeup events are registered during or immediately before the transition.
@@ -359,6 +361,44 @@ static bool wakeup_source_not_registered(struct wakeup_source *ws)
 		   ws->timer.data != (unsigned long)ws;
 }
 
+static bool wakeup_source_blocker(struct wakeup_source *ws)
+{
+
+	unsigned int wslen = 0;
+
+// pstglia teste - block every wakelock!
+if (ws->active) {
+wakeup_source_deactivate(ws);
+pr_info("forcefully deactivate wakeup source: %s\n",
+ws->name);
+}
+return true;
+
+
+	if (ws) {
+		wslen = strlen(ws->name);
+		if (( !strncmp(ws->name, "IPA_WS", 6)) ||
+			( !strncmp(ws->name, "wlan_extscan_wl", 15)) ||
+			( !strncmp(ws->name, "qcom_rx_wakelock", 16)) ||
+			( !strncmp(ws->name, "wlan", 4)) ||
+			( !strncmp(ws->name, "[timerfd]", 9)) ||
+			( !strncmp(ws->name, "NETLINK", 7)) || 
+			( !strncmp(ws->name, "eventpoll", 9)) || 
+			( !strncmp(ws->name, "PowerManagerService.WakeLocks", 29)) || 
+			( !strncmp(ws->name, "mmc0_detect", 11)) ||
+			( !strncmp(ws->name, "mmc1_detect", 11))) {
+			if (ws->active) {
+				wakeup_source_deactivate(ws);
+				pr_info("forcefully deactivate wakeup source: %s\n",
+					ws->name);
+			}
+			return true;
+	       }
+	}
+
+	return false;
+}
+
 /*
  * The functions below use the observation that each wakeup event starts a
  * period in which the system should not be suspended.  The moment this period
@@ -399,6 +439,9 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 {
 	unsigned int cec;
 
+	if (wakeup_source_blocker(ws))
+		return;
+
 	if (WARN(wakeup_source_not_registered(ws),
 			"unregistered wakeup source\n"))
 		return;
@@ -427,13 +470,15 @@ static void wakeup_source_activate(struct wakeup_source *ws)
  */
 static void wakeup_source_report_event(struct wakeup_source *ws)
 {
-	ws->event_count++;
-	/* This is racy, but the counter is approximate anyway. */
-	if (events_check_enabled)
-		ws->wakeup_count++;
+	if (!wakeup_source_blocker(ws)) {
+		ws->event_count++;
+		/* This is racy, but the counter is approximate anyway. */
+		if (events_check_enabled)
+			ws->wakeup_count++;
 
-	if (!ws->active)
-		wakeup_source_activate(ws);
+		if (!ws->active)
+			wakeup_source_activate(ws);
+	}
 }
 
 /**
@@ -721,7 +766,9 @@ void print_active_wakeup_sources(void)
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		if (ws->active) {
 			pr_info("active wakeup source: %s\n", ws->name);
-			active = 1;
+
+			if (!wakeup_source_blocker(ws))
+				active = 1;
 		} else if (!active &&
 			   (!last_activity_ws ||
 			    ktime_to_ns(ws->last_time) >
@@ -733,8 +780,11 @@ void print_active_wakeup_sources(void)
 	if (!active && last_activity_ws)
 		pr_info("last active wakeup source: %s\n",
 			last_activity_ws->name);
+
 	rcu_read_unlock();
+
 }
+EXPORT_SYMBOL_GPL(print_active_wakeup_sources);
 
 /**
  * pm_wakeup_pending - Check if power transition in progress should be aborted.
