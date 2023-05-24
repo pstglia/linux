@@ -217,15 +217,20 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 {
 	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
 	int error, last_dev;
+	pr_info("pstglia: DEBUG - suspend_enter init");
 
 	if (need_suspend_ops(state) && suspend_ops->prepare) {
+		pr_info("pstglia: DEBUG - 1 need_suspend_ops(state) && suspend_ops->prepare returned true");
 		error = suspend_ops->prepare();
-		if (error)
+		if (error) {
+			pr_info("pstglia: DEBUG - 2 suspend_ops->prepare() returned %d ", error);
 			goto Platform_finish;
+		}
 	}
 
 	error = dpm_suspend_end(PMSG_SUSPEND);
 	if (error) {
+		pr_info("pstglia: DEBUG - 3 dpm_suspend_end(PMSG_SUSPEND) returned %d ", error);
 		last_dev = suspend_stats.last_failed_dev + REC_FAILED_NUM - 1;
 		last_dev %= REC_FAILED_NUM;
 		printk(KERN_ERR "PM: Some devices failed to power down\n");
@@ -233,15 +238,21 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 			suspend_stats.failed_devs[last_dev]);
 		goto Platform_finish;
 	}
+	pr_info("pstglia: DEBUG - 4  before need_suspend_ops(state) && suspend_ops->prepare_late");
 
 	if (need_suspend_ops(state) && suspend_ops->prepare_late) {
+		pr_info("pstglia: DEBUG - 5 need_suspend_ops(state) && suspend_ops->prepare_late returned true");
 		error = suspend_ops->prepare_late();
-		if (error)
+		if (error) {
+			pr_info("pstglia: DEBUG - 6 suspend_ops->prepare_late() returned error - goto Platform_wake");
 			goto Platform_wake;
+		}
 	}
 
-	if (suspend_test(TEST_PLATFORM))
+	if (suspend_test(TEST_PLATFORM)) {
+		pr_info("pstglia: DEBUG - 7 suspend_test(TEST_PLATFORM) returned true - goto Platform_wake");
 		goto Platform_wake;
+	}
 
 	/*
 	 * PM_SUSPEND_FREEZE equals
@@ -251,42 +262,54 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	 */
 	if (state == PM_SUSPEND_FREEZE) {
 		freeze_enter();
+		pr_info("pstglia: DEBUG - 8 state == PM_SUSPEND_FREEZE returned true - goto Platform_wake");
 		goto Platform_wake;
 	}
 
 	error = disable_nonboot_cpus();
 	if (error || suspend_test(TEST_CPUS)) {
+		pr_info("pstglia: DEBUG - 9 error || suspend_test(TEST_CPUS) %d ", error);
 		log_suspend_abort_reason("Disabling non-boot cpus failed");
 		goto Enable_cpus;
 	}
 
+	pr_info("pstglia: DEBUG - 10 before arch_suspend_disable_irqs");
 	arch_suspend_disable_irqs();
+	pr_info("pstglia: DEBUG - 11 before BUG_ON(!irqs_disabled())");
 	BUG_ON(!irqs_disabled());
 
 	error = syscore_suspend();
 	if (!error) {
+		pr_info("pstglia: DEBUG - 12 syscore_suspend %d ", error);
 		*wakeup = pm_wakeup_pending();
 		if (!(suspend_test(TEST_CORE) || *wakeup)) {
 			error = suspend_ops->enter(state);
+			pr_info("pstglia: DEBUG - 13 !(suspend_test(TEST_CORE) || *wakeup) error %d ", error);
 			events_check_enabled = false;
 		} else if (*wakeup) {
 			pm_get_active_wakeup_sources(suspend_abort,
 				MAX_SUSPEND_ABORT_LEN);
 			log_suspend_abort_reason(suspend_abort);
+			pr_info("pstglia: DEBUG - 14 *wakeup ");
 			error = -EBUSY;
 		}
 		syscore_resume();
 	}
 
+	pr_info("pstglia: DEBUG - 15 before arch_suspend_enable_irqs");
 	arch_suspend_enable_irqs();
+	pr_info("pstglia: DEBUG - 16 before BUG_ON(irqs_disabled())");
 	BUG_ON(irqs_disabled());
 
  Enable_cpus:
+	pr_info("pstglia: DEBUG - 18 Inside Enable_cpus before enable_nonboot_cpus");
 	enable_nonboot_cpus();
 
  Platform_wake:
-	if (need_suspend_ops(state) && suspend_ops->wake)
+	if (need_suspend_ops(state) && suspend_ops->wake) {
+		pr_info("pstglia: DEBUG - 19 Inside Platform_wake need_suspend_ops(state) && suspend_ops->wake returned true");
 		suspend_ops->wake();
+	}
 
 	dpm_resume_start(PMSG_RESUME);
 
@@ -294,6 +317,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	if (need_suspend_ops(state) && suspend_ops->finish)
 		suspend_ops->finish();
 
+	pr_info("pstglia: DEBUG - FINAL error %d ", error);
 	return error;
 }
 

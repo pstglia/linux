@@ -138,6 +138,11 @@ static struct wakelock *wakelock_lookup_add(const char *name, size_t len,
 	struct rb_node *parent = *node;
 	struct wakelock *wl;
 
+	if (strncmp(name, "NETLINK", len) == 0) {
+		pr_info("pstglia: DEBUG wakelock_lookup_add - Trying to set NETLINK");
+		dump_stack();
+	}
+
 	while (*node) {
 		int diff;
 

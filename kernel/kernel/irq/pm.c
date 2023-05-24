@@ -55,6 +55,8 @@ static void resume_irqs(bool want_early)
 
 #ifdef CONFIG_PM_DEBUG
 		if (desc->istate & IRQS_PENDING) {
+			pr_info("pstglia: DEBUG - print stack under resume_irqs");
+			dump_stack();
 			printk(KERN_DEBUG "Wakeup from IRQ %d %s\n",
 				irq,
 				desc->action && desc->action->name ?
