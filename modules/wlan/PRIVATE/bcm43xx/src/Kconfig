@@ -10,6 +10,12 @@ config BCMDHD
 	  If you choose to build a module, it'll be called dhd. Say M if
 	  unsure.
 
+config BCM4330
+       bool "Broadcom BCM4330 support only"
+       depends on BCMDHD && CFG80211
+       ---help---
+               Enable any BCM4330 specific options.
+
 config BCMDHD_FW_PATH
 	depends on BCMDHD
 	string "Firmware path"
@@ -20,7 +26,7 @@ config BCMDHD_FW_PATH
 config BCMDHD_NVRAM_PATH
 	depends on BCMDHD
 	string "NVRAM path"
-	default "/system/etc/wifi/bcmdhd.cal"
+	default "/system/etc/firmware/bcmdhd_aob.cal"
 	---help---
 	  Path to the calibration file.
 

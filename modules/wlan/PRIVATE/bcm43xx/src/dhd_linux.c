@@ -85,10 +85,7 @@
 #endif
 #include <linux/cpufreq.h>
 
-//++ [knight_chang@assus.com] add Read_PROJ_ID info
 #include <linux/HWVersion.h>
-extern int Read_PROJ_ID(void);
-bool setNvramPath(void);
 
 //30Mbit/s = 30*1024*1024 bit/s = 31457280 bit/s = 3932160 byte/s
 //20Mbit/s = 20*1024*1024 bit/s = 20971520 bit/s = 2621440 byte/s
@@ -447,7 +444,7 @@ uint dhd_download_fw_on_driverload = TRUE;
 /* Definitions to provide path to the firmware and nvram
  * example nvram_path[MOD_PARAM_PATHLEN]="/projects/wlan/nvram.txt"
  */
-char firmware_path[MOD_PARAM_PATHLEN]="/system/etc/firmware/fw_bcmdhd_43362.bin";
+char firmware_path[MOD_PARAM_PATHLEN]="/system/etc/firmware/fw_bcmdhd.bin";
 char nvram_path[MOD_PARAM_PATHLEN];
 
 /* information string to keep firmware, chio, cheip version info visiable from log */
@@ -3382,10 +3379,10 @@ static struct net_device_ops dhd_ops_virt = {
 dhd_pub_t *
 dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 {
-        if(!setNvramPath()){
-                DHD_ERROR(("%s: set nvram_path failed with Unknown PROJ_ID:%d)\n", __FUNCTION__, Read_PROJ_ID()));
-		goto fail;
-        }
+        memset(nvram_path, 0, sizeof(nvram_path));
+        strcpy(nvram_path, "/system/etc/firmware/bcmdhd_aob.cal");
+        printk("%s:NVram use /system/etc/firmware/bcmdhd_aob.cal\n", __FUNCTION__);
+
 	dhd_info_t *dhd = NULL;
 	struct net_device *net = NULL;
 	int fw_auto_name = 0;
@@ -7053,31 +7050,3 @@ void htsf_update(dhd_info_t *dhd, void *data)
 }
 
 #endif /* WLMEDIA_HTSF */
-
-bool setNvramPath(){
-	memset(nvram_path, 0, sizeof(nvram_path));
-        switch(Read_PROJ_ID())
-        {
-                case PROJ_ID_A500CG:
-                case PROJ_ID_A501CG:
-                case PROJ_ID_A501CG_BZ:
-                case PROJ_ID_A500CG_ID:
-                case PROJ_ID_A501CG_ID:
-                        strcpy(nvram_path, "/system/etc/wifi/bcmdhd_a500cg.cal");
-	                printk("%s:NVram use bcmdhd_a500cg.cal\n", __FUNCTION__);
-                        break;
-                case PROJ_ID_A600CG:
-                case PROJ_ID_A601CG:
-                        strcpy(nvram_path, "/system/etc/wifi/bcmdhd_a600cg.cal");
-	                printk("%s:NVram use bcmdhd_a600cg.cal\n", __FUNCTION__);
-                        break;
-                case PROJ_ID_A502CG:
-                        strcpy(nvram_path, "/system/etc/wifi/bcmdhd_a502cg.cal");
-	                printk("%s:NVram use bcmdhd_a502cg.cal\n", __FUNCTION__);
-                        break;
-                default:
-	                printk("%s:NVram PROJ_ID not find error\n", __FUNCTION__);
-                        return false;
-        }
-        return true;
-}

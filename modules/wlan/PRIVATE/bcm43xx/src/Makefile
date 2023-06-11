@@ -1,6 +1,3 @@
-# A500CG/A600CG/A502CG using BCM43362 chip set
-CONFIG_BCM43362=y
-
 # bcmdhd for INTEL 4334, 4335, 43241, 43362
 ifneq ($(CONFIG_BCM4334),)
 BCM43XX_DRIVER=bcm4334
@@ -10,8 +7,8 @@ ifneq ($(CONFIG_BCM4335),)
 BCM43XX_DRIVER=bcm4335
 endif
 
-ifneq ($(CONFIG_BCM43241),)
-BCM43XX_DRIVER=bcm43241
+ifneq ($(CONFIG_BCM4330),)
+BCM43XX_DRIVER=bcm4330
 endif
 
 ifneq ($(CONFIG_BCM4334x),)
@@ -103,10 +100,9 @@ $(info bcmdhd: Compiling for 4334x chip)
   DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=128
 endif
 
-ifneq ($(CONFIG_BCM43241),)
-$(info bcmdhd: Compiling for 43241 chip)
+ifneq ($(CONFIG_BCM4330),)
+$(info bcmdhd: Compiling for 4330 chip)
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=5
-  DHDCFLAGS += -DUSE_SDIOFIFO_IOVAR
   DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=128
 endif
 
