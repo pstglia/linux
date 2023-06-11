@@ -3493,7 +3493,7 @@ CONFIG_BCM4330=y
 # CONFIG_BCM43241 is not set
 CONFIG_INTEL_PLATFORM=y
 CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcmdhd.bin"
-CONFIG_BCMDHD_NVRAM_PATH="/system/etc/wifi/bcmdhd.cal"
+CONFIG_BCMDHD_NVRAM_PATH="/system/etc/firmware/bcmdhd_aob.cal"
 # CONFIG_DHD_USE_STATIC_BUF is not set
 # CONFIG_DHD_USE_SCHED_SCAN is not set
 
